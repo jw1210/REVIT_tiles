@@ -1,7 +1,0 @@
-C:\Users\jenwe\Desktop\REVIT_tiles\REVIT_tiles\TilePlanner\bin\Debug\net48\TilePlanner.dll
-C:\Users\jenwe\Desktop\REVIT_tiles\REVIT_tiles\TilePlanner\bin\Debug\net48\TilePlanner.pdb
-C:\Users\jenwe\Desktop\REVIT_tiles\REVIT_tiles\TilePlanner\obj\Debug\net48\TilePlanner.csproj.AssemblyReference.cache
-C:\Users\jenwe\Desktop\REVIT_tiles\REVIT_tiles\TilePlanner\obj\Debug\net48\TilePlanner.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\jenwe\Desktop\REVIT_tiles\REVIT_tiles\TilePlanner\obj\Debug\net48\TilePlanner.csproj.CoreCompileInputs.cache
-C:\Users\jenwe\Desktop\REVIT_tiles\REVIT_tiles\TilePlanner\obj\Debug\net48\TilePlanner.dll
-C:\Users\jenwe\Desktop\REVIT_tiles\REVIT_tiles\TilePlanner\obj\Debug\net48\TilePlanner.pdb

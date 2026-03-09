@@ -15,11 +15,9 @@ namespace TilePlanner.UI
         // 磁磚設定
         private TextBox txtTileWidth;
         private TextBox txtTileHeight;
-        private TextBox txtTileThickness;
 
         // 灰縫設定
         private TextBox txtGroutWidth;
-        private TextBox txtGroutThickness;
 
         // 排列模式
         private RadioButton rbGrid;

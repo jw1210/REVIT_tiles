@@ -49,42 +49,27 @@ namespace TilePlanner.Commands
 
                 TileConfig config = dialog.GetTileConfig();
 
-                // 確保 Updater 已在目前文件中註冊 (這裡可以考慮稍後移除 TileGridUpdater)
-                TileGridUpdater.Register(doc);
-                TileAutoUpdater.Register(doc);
-
                 using (Transaction trans = new Transaction(doc, "建立磁磚零件計畫"))
                 {
                     trans.Start();
 
                     try
                     {
-                        // 避免在建立過程觸發其他事件
-                        TileAutoUpdater.IsEnabled = false;
-
                         // 直接對選取的目標實體牆面/樓板進行 Parts 分割
                         TilePartEngine engine = new TilePartEngine(doc, config);
                         engine.ExecuteOnElement(selectedElement);
 
-                        // 將設定存入 Element 中 (支援自動延伸更新)
-                        TileDataManager.SaveTileConfig(selectedElement, config, selectedElement.Id);
-
                         trans.Commit();
-                        TileGridUpdater.IsEnabled = true;
 
                         TaskDialog.Show("磁磚計畫",
                             $"實體磁磚零件 (Parts) 產生並分割完成！\n\n" +
                             $"📍 已自動生成真實厚度灰縫。\n" +
                             $"💡 提示：如果視圖中看不到分割，請確認該視圖的屬性面板中，「零件可見性(Parts Visibility)」已經設定為「展示零件(Show Parts)」。\n");
 
-                        // 將最初始的實質幾何特徵寫入快取
-                        TileAutoUpdater.UpdateSignatureCache(selectedElement);
-                        TileAutoUpdater.IsEnabled = true;
                         return Result.Succeeded;
                     }
                     catch (Exception ex)
                     {
-                        TileAutoUpdater.IsEnabled = true;
                         trans.RollBack();
                         message = $"磁磚分割失敗：{ex.Message}\n\n{ex.StackTrace}";
                         TaskDialog.Show("磁磚計畫 - 錯誤", message);

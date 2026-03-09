@@ -18,14 +18,9 @@ namespace TilePlanner.Commands
         {
             try
             {
-                TileGridUpdater.IsEnabled = !TileGridUpdater.IsEnabled;
-
-                string status = TileGridUpdater.IsEnabled ? "已啟用" : "已停用";
-                TaskDialog.Show("磁磚計畫",
-                    $"格線整體連動：{status}\n\n" +
-                    (TileGridUpdater.IsEnabled
-                        ? "移動任一格線時，同方向的所有格線將一起平移。"
-                        : "格線將獨立移動。"));
+                TaskDialog.Show("磁磚計畫 - 網格連動",
+                    "零件分割(Divide Parts) 模式下，已不再使用格線連動功能。\n" +
+                    "如需修改分割，請重新執行「建立磁磚計畫」指令以覆蓋。");
 
                 return Result.Succeeded;
             }

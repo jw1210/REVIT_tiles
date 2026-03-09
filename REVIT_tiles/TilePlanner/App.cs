@@ -59,12 +59,10 @@ namespace TilePlanner
                     "啟用後，移動一條分割格線時，同方向的所有格線將一起平移，保持磁磚排列間距。";
                 PushButton toggleBtn = panel.AddItem(toggleBtnData) as PushButton;
 
-                // 註冊 Dynamic Model Updater（在文件開啟時才實際生效）
-                application.ControlledApplication.DocumentOpened += (sender, args) =>
-                {
-                    TileGridUpdater.Register(args.Document);
-                    TileAutoUpdater.Register(args.Document);
-                };
+                // 註冊已移除的 Dynamic Model Updater
+                // application.ControlledApplication.DocumentOpened += (sender, args) =>
+                // {
+                // };
 
                 return Result.Succeeded;
             }

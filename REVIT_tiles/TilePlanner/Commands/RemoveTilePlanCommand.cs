@@ -51,10 +51,6 @@ namespace TilePlanner.Commands
 
                     try
                     {
-                        // 避免在刪除格線的過程中，幾何改變又觸發了 AutoUpdater 試圖重建
-                        bool wasAutoUpdateEnabled = TileAutoUpdater.IsEnabled;
-                        TileAutoUpdater.IsEnabled = false;
-
                         foreach (CurtainGrid grid in grids)
                         {
                             RemoveGridContent(doc, grid);
@@ -64,7 +60,6 @@ namespace TilePlanner.Commands
                         TileDataManager.RemoveTileConfig(selectedElement);
 
                         trans.Commit();
-                        TileAutoUpdater.IsEnabled = wasAutoUpdateEnabled;
                         string typeName = CurtainGridHelper.GetElementTypeName(selectedElement);
                         TaskDialog.Show("磁磚計畫",
                             $"已移除{typeName}上的磁磚分割。");
@@ -72,7 +67,6 @@ namespace TilePlanner.Commands
                     }
                     catch (Exception ex)
                     {
-                        TileAutoUpdater.IsEnabled = true;
                         trans.RollBack();
                         message = $"移除失敗：{ex.Message}";
                         TaskDialog.Show("磁磚計畫 - 錯誤", message);

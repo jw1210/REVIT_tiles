@@ -94,58 +94,15 @@ namespace TilePlanner.Core
             // We must provide intersecting curve arrays. Since PartUtils takes an ICollection<Curve> we pass our generated curves
             try
             {
-                // To safely deal with API changes (gap argument) across Revit 2024 and 2025 multi-targeting:
-                // Use reflection to find the correct overload of PartUtils.DivideParts
-                var method = typeof(PartUtils).GetMethod(
-                    "DivideParts",
-                    new Type[] {
-                        typeof(Document),
-                        typeof(ICollection<ElementId>),
-                        typeof(ICollection<Curve>),
-                        typeof(ElementId),
-                        typeof(ElementId),
-                        typeof(double)
-                    });
-
-                if (method != null)
-                {
-                    method.Invoke(null, new object[] {
-                        _doc,
-                        partsToDivide,
-                        intersectingCurves,
-                        sketchPlane.Id,
-                        ElementId.InvalidElementId,
-                        groutGap
-                    });
-                }
-                else
-                {
-                    // Fallback for older versions if they only support 5 arguments (no gap)
-                    var oldMethod = typeof(PartUtils).GetMethod(
-                        "DivideParts",
-                        new Type[] {
-                            typeof(Document),
-                            typeof(ICollection<ElementId>),
-                            typeof(ICollection<Curve>),
-                            typeof(ElementId),
-                            typeof(ElementId)
-                        });
-                        
-                    if (oldMethod != null)
-                    {
-                        oldMethod.Invoke(null, new object[] {
-                            _doc,
-                            partsToDivide,
-                            intersectingCurves,
-                            sketchPlane.Id,
-                            ElementId.InvalidElementId
-                        });
-                    }
-                    else
-                    {
-                        throw new InvalidOperationException("無法在當前 Revit 版本中找到相容的 DivideParts 方法。");
-                    }
-                }
+                // Revit API DivideParts signature:
+                // DivideParts(Document, ICollection<ElementId> partsToDivide, ICollection<ElementId> intersectingElementIds, IList<Curve> curves, ElementId sketchPlane)
+                PartUtils.DivideParts(
+                    _doc,
+                    partsToDivide,
+                    new List<ElementId>(), // No intersecting elements
+                    intersectingCurves,
+                    sketchPlane.Id
+                );
             }
             catch (Exception ex)
             {

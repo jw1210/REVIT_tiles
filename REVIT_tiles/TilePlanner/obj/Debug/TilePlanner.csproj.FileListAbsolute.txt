@@ -1,0 +1,7 @@
+C:\Users\krad1210\Desktop\REVIT_tiles\TilePlanner\obj\Debug\TilePlanner.csproj.AssemblyReference.cache
+C:\Users\krad1210\Desktop\REVIT_tiles\TilePlanner\obj\Debug\TilePlanner.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\krad1210\Desktop\REVIT_tiles\TilePlanner\obj\Debug\TilePlanner.csproj.CoreCompileInputs.cache
+C:\Users\krad1210\Desktop\REVIT_tiles\TilePlanner\bin\Debug\TilePlanner.dll
+C:\Users\krad1210\Desktop\REVIT_tiles\TilePlanner\bin\Debug\TilePlanner.pdb
+C:\Users\krad1210\Desktop\REVIT_tiles\TilePlanner\obj\Debug\TilePlanner.dll
+C:\Users\krad1210\Desktop\REVIT_tiles\TilePlanner\obj\Debug\TilePlanner.pdb

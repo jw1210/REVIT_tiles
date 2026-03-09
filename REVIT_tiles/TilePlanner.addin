@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <!-- 應用程式入口（Ribbon UI） -->
+  <AddIn Type="Application">
+    <Name>TilePlanner</Name>
+    <Assembly>TilePlanner\TilePlanner.dll</Assembly>
+    <FullClassName>TilePlanner.App</FullClassName>
+    <AddInId>A1B2C3D4-E5F6-7890-ABCD-EF1234567890</AddInId>
+    <VendorId>TilePlanner</VendorId>
+    <VendorDescription>磁磚計畫外掛</VendorDescription>
+  </AddIn>
+
+  <!-- 建立磁磚計畫指令 -->
+  <AddIn Type="Command">
+    <Name>建立磁磚計畫</Name>
+    <Assembly>TilePlanner\TilePlanner.dll</Assembly>
+    <FullClassName>TilePlanner.Commands.CreateTilePlanCommand</FullClassName>
+    <AddInId>B2C3D4E5-F6A7-8901-BCDE-F12345678901</AddInId>
+    <VendorId>TilePlanner</VendorId>
+    <VendorDescription>磁磚計畫外掛</VendorDescription>
+  </AddIn>
+
+  <!-- 移除磁磚計畫指令 -->
+  <AddIn Type="Command">
+    <Name>移除磁磚計畫</Name>
+    <Assembly>TilePlanner\TilePlanner.dll</Assembly>
+    <FullClassName>TilePlanner.Commands.RemoveTilePlanCommand</FullClassName>
+    <AddInId>C3D4E5F6-A7B8-9012-CDEF-123456789012</AddInId>
+    <VendorId>TilePlanner</VendorId>
+    <VendorDescription>磁磚計畫外掛</VendorDescription>
+  </AddIn>
+  <!-- 格線整體連動指令 -->
+  <AddIn Type="Command">
+    <Name>格線整體連動</Name>
+    <Assembly>TilePlanner\TilePlanner.dll</Assembly>
+    <FullClassName>TilePlanner.Commands.ToggleLinkedMoveCommand</FullClassName>
+    <AddInId>D4E5F6A7-B8C9-0123-DEAF-234567890123</AddInId>
+    <VendorId>TilePlanner</VendorId>
+    <VendorDescription>磁磚計畫外掛</VendorDescription>
+  </AddIn>
+</RevitAddIns>

@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0-windows;net48</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <OutputType>Library</OutputType>
+    <RootNamespace>TilePlanner</RootNamespace>
+    <AssemblyName>TilePlanner</AssemblyName>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+  </PropertyGroup>
+
+  <!-- .NET Framework 4.8 Reference Assemblies (for SDK-style build) -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Revit API References depending on TargetFramework -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <RevitVersion>2024</RevitVersion>
+    <RevitApiPath>C:\Program Files\Autodesk\Revit 2024</RevitApiPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <RevitVersion>2025</RevitVersion>
+    <RevitApiPath>C:\Program Files\Autodesk\Revit 2025</RevitApiPath>
+  </PropertyGroup>
+
+  <!-- If the local path does not exist, fallback to Nuget packages -->
+  <ItemGroup Condition="!Exists('$(RevitApiPath)\RevitAPI.dll') AND '$(RevitVersion)' == '2024'">
+    <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2024.0.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('$(RevitApiPath)\RevitAPI.dll') AND '$(RevitVersion)' == '2025'">
+    <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2025.0.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <!-- If local path EXISTS, use hint path -->
+  <ItemGroup Condition="Exists('$(RevitApiPath)\RevitAPI.dll')">
+    <Reference Include="RevitAPI">
+      <HintPath>$(RevitApiPath)\RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>$(RevitApiPath)\RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- WPF References for net48. Net 8 utilizes <UseWPF>true</UseWPF> -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
+  </ItemGroup>
+
+</Project>

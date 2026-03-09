@@ -63,7 +63,6 @@ namespace TilePlanner.Commands
 
                         TaskDialog.Show("磁磚計畫",
                             $"實體磁磚零件 (Parts) 產生並分割完成！\n\n" +
-                            $"📍 已自動生成真實厚度灰縫。\n" +
                             $"💡 提示：如果視圖中看不到分割，請確認該視圖的屬性面板中，「零件可見性(Parts Visibility)」已經設定為「展示零件(Show Parts)」。\n");
 
                         return Result.Succeeded;

@@ -81,21 +81,16 @@ namespace TilePlanner.Core
 
             if (intersectingCurves.Count == 0) return;
 
-            // 6. Execute DivideParts
-            // Setup SketchPlane for the intersecting curves (usually needs to intersect the part)
-            SketchPlane sketchPlane = SketchPlane.Create(_doc, targetFace.GetSurface() as Plane);
-
-            // Grout Gap
-            double groutGap = _config.GroutWidthFeet;
+            // Setup SketchPlane matching the PlanarFace exactly
+            Plane plane = Plane.CreateByOriginAndBasis(targetFace.Origin, targetFace.XVector, targetFace.YVector);
+            SketchPlane sketchPlane = SketchPlane.Create(_doc, plane);
 
             // Use the target part
             List<ElementId> partsToDivide = new List<ElementId> { targetPartId };
 
-            // We must provide intersecting curve arrays. Since PartUtils takes an ICollection<Curve> we pass our generated curves
             try
             {
-                // Revit API DivideParts signature:
-                // DivideParts(Document, ICollection<ElementId> partsToDivide, ICollection<ElementId> intersectingElementIds, IList<Curve> curves, ElementId sketchPlane)
+                // Revit API DivideParts
                 PartUtils.DivideParts(
                     _doc,
                     partsToDivide,

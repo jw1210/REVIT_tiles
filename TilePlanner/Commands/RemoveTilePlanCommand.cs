@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -28,8 +29,8 @@ namespace TilePlanner.Commands
                 {
                     elemRef = uidoc.Selection.PickObject(
                         ObjectType.Element,
-                        new CurtainElementSelectionFilter(),
-                        "請選取要移除磁磚計畫的帷幕牆、帷幕系統或帷幕屋頂");
+                        new PartSelectionFilter(), // 這裡改用我們自定義的 Part 過濾器
+                        "請選取要移除磁磚計畫的實體零件 (Part)");
                 }
                 catch (Autodesk.Revit.Exceptions.OperationCanceledException)
                 {
@@ -37,13 +38,29 @@ namespace TilePlanner.Commands
                 }
 
                 Element selectedElement = doc.GetElement(elemRef.ElementId);
-                List<CurtainGrid> grids = CurtainGridHelper.GetCurtainGrids(selectedElement);
-
-                if (grids.Count == 0)
+                
+                if (!(selectedElement is Part part))
                 {
-                    TaskDialog.Show("磁磚計畫", "選取的元素沒有帷幕格線。");
+                    TaskDialog.Show("磁磚計畫", "選取的元素不是零件。");
                     return Result.Failed;
                 }
+
+                // 1. 尋找原宿主物件 (Host Element)
+                ElementId hostId = ElementId.InvalidElementId;
+                var sourceIds = part.GetSourceElementIds();
+                if (sourceIds != null && sourceIds.Count > 0)
+                {
+                    // 取得最源頭的宿主 Element (通常是牆壁或樓板)
+                    hostId = sourceIds.First().HostElementId;
+                }
+
+                if (hostId == ElementId.InvalidElementId)
+                {
+                    TaskDialog.Show("磁磚計畫", "無法找到此零件的原始宿主牆或樓板。");
+                    return Result.Failed;
+                }
+
+                Element hostElement = doc.GetElement(hostId);
 
                 using (Transaction trans = new Transaction(doc, "移除磁磚計畫"))
                 {
@@ -51,18 +68,70 @@ namespace TilePlanner.Commands
 
                     try
                     {
-                        foreach (CurtainGrid grid in grids)
+                        // 2. 刪除所有與該 Host 相關的 PartMaker (這將直接復原分割)
+                        ICollection<ElementId> allAssociatedParts = PartUtils.GetAssociatedParts(doc, hostId, true, true);
+                        HashSet<ElementId> makersToDelete = new HashSet<ElementId>();
+                        foreach (ElementId pId in allAssociatedParts)
                         {
-                            RemoveGridContent(doc, grid);
+                            PartMaker pm = PartUtils.GetAssociatedPartMaker(doc, pId);
+                            if (pm != null)
+                            {
+                                makersToDelete.Add(pm.Id);
+                            }
                         }
 
-                        // 刪除該元素上的設定資料，避免後續又被觸發
-                        TileDataManager.RemoveTileConfig(selectedElement);
+                        if (makersToDelete.Count > 0)
+                        {
+                            doc.Delete(makersToDelete.ToList());
+                        }
+                        else
+                        {
+                            // 如果找不到 PartMaker，有可能這個不是透過工具分割的，或者本來就沒有
+                        }
+
+                        // 3. 清理依附於此 Host 的參照平面 (Reference Planes) 與群組
+                        string suffix = $"_{hostId.IntegerValue}";
+                        
+                        // 刪除參照平面
+                        var refPlanes = new FilteredElementCollector(doc)
+                            .OfClass(typeof(ReferencePlane))
+                            .WhereElementIsNotElementType()
+                            .Cast<ReferencePlane>()
+                            .Where(rp => rp.Name != null && rp.Name.EndsWith(suffix))
+                            .Select(rp => rp.Id)
+                            .ToList();
+
+                        if (refPlanes.Count > 0) doc.Delete(refPlanes);
+
+                        // 刪除群組定義 (GroupType) 與其實例 (Group)
+                        var groups = new FilteredElementCollector(doc)
+                            .OfCategory(BuiltInCategory.OST_IOSModelGroups)
+                            .WhereElementIsNotElementType()
+                            .Cast<Group>()
+                            .Where(g => g.GroupType != null && g.GroupType.Name.Contains($"TileGrid_{suffix}"))
+                            .Select(g => g.Id)
+                            .ToList();
+                            
+                        if (groups.Count > 0) doc.Delete(groups);
+
+                        var groupTypes = new FilteredElementCollector(doc)
+                            .OfClass(typeof(GroupType))
+                            .WhereElementIsNotElementType()
+                            .Cast<GroupType>()
+                            .Where(g => g.Name != null && g.Name.Contains($"TileGrid_{suffix}"))
+                            .Select(g => g.Id)
+                            .ToList();
+
+                        if (groupTypes.Count > 0) doc.Delete(groupTypes);
+
+                        // 4. 清除掛載在 Host 上的設定資料
+                        if (hostElement != null)
+                        {
+                            TileDataManager.RemoveTileConfig(hostElement);
+                        }
 
                         trans.Commit();
-                        string typeName = CurtainGridHelper.GetElementTypeName(selectedElement);
-                        TaskDialog.Show("磁磚計畫",
-                            $"已移除{typeName}上的磁磚分割。");
+                        TaskDialog.Show("磁磚計畫", "已成功移除磁磚分割，零件已還原原本狀態。");
                         return Result.Succeeded;
                     }
                     catch (Exception ex)
@@ -78,43 +147,6 @@ namespace TilePlanner.Commands
             {
                 message = $"執行錯誤：{ex.Message}";
                 return Result.Failed;
-            }
-        }
-
-        private void RemoveGridContent(Document doc, CurtainGrid grid)
-        {
-            // 刪除竪框
-            ICollection<ElementId> mullionIds = grid.GetMullionIds();
-            foreach (ElementId id in mullionIds)
-            {
-                Mullion m = doc.GetElement(id) as Mullion;
-                if (m != null && m.Pinned) m.Pinned = false;
-            }
-            if (mullionIds.Count > 0)
-                doc.Delete(mullionIds);
-
-            // 刪除水平格線
-            foreach (ElementId id in grid.GetUGridLineIds())
-            {
-                try
-                {
-                    CurtainGridLine gl = doc.GetElement(id) as CurtainGridLine;
-                    if (gl != null && gl.Pinned) gl.Pinned = false;
-                    doc.Delete(id);
-                }
-                catch (Exception) { }
-            }
-
-            // 刪除垂直格線
-            foreach (ElementId id in grid.GetVGridLineIds())
-            {
-                try
-                {
-                    CurtainGridLine gl = doc.GetElement(id) as CurtainGridLine;
-                    if (gl != null && gl.Pinned) gl.Pinned = false;
-                    doc.Delete(id);
-                }
-                catch (Exception) { }
             }
         }
     }

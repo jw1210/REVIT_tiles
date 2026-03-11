@@ -43,9 +43,7 @@ namespace TilePlanner.UI
             {
                 TileWidth = ParseDouble(txtTileWidth.Text, 200),
                 TileHeight = ParseDouble(txtTileHeight.Text, 200),
-                TileThickness = 0,
                 GroutWidth = ParseDouble(txtGroutWidth?.Text, 3),
-                GroutThickness = 0, // Since gap in PartUtils only needs width, thickness is irrelevant.
                 PatternType = rbRunningBond.IsChecked == true
                     ? TilePatternType.RunningBond
                     : TilePatternType.Grid,
@@ -339,21 +337,20 @@ namespace TilePlanner.UI
 
             switch (cmbPreset.SelectedIndex)
             {
-                case 1: SetTileDimensions(200, 200, 10); break;
-                case 2: SetTileDimensions(300, 300, 10); break;
-                case 3: SetTileDimensions(300, 600, 10); break;
-                case 4: SetTileDimensions(600, 600, 10); break;
-                case 5: SetTileDimensions(450, 900, 10); break;
-                case 6: SetTileDimensions(600, 1200, 10); break;
-                case 7: SetTileDimensions(60, 227, 10); break;
+                case 1: SetTileDimensions(200, 200); break;
+                case 2: SetTileDimensions(300, 300); break;
+                case 3: SetTileDimensions(300, 600); break;
+                case 4: SetTileDimensions(600, 600); break;
+                case 5: SetTileDimensions(450, 900); break;
+                case 6: SetTileDimensions(600, 1200); break;
+                case 7: SetTileDimensions(60, 227); break;
             }
         }
 
-        private void SetTileDimensions(double width, double height, double thickness)
+        private void SetTileDimensions(double width, double height)
         {
             if (txtTileWidth != null) txtTileWidth.Text = width.ToString();
             if (txtTileHeight != null) txtTileHeight.Text = height.ToString();
-            // if (txtTileThickness != null) txtTileThickness.Text = thickness.ToString();
         }
 
         private void RbPattern_Checked(object sender, RoutedEventArgs e)

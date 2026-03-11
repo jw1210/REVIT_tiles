@@ -30,8 +30,8 @@ namespace TilePlanner.Commands
                 {
                     elemRef = uidoc.Selection.PickObject(
                         ObjectType.Element,
-                        new CurtainElementSelectionFilter(),
-                        "請選取要進行磁磚分割的帷幕牆、帷幕系統或帷幕屋頂");
+                        new PartSelectionFilter(),
+                        "請選取要進行磁磚分割的實體零件 (Part)");
                 }
                 catch (Autodesk.Revit.Exceptions.OperationCanceledException)
                 {
@@ -49,9 +49,9 @@ namespace TilePlanner.Commands
 
                 TileConfig config = dialog.GetTileConfig();
 
-                using (Transaction trans = new Transaction(doc, "建立磁磚零件計畫"))
+                using (TransactionGroup tGroup = new TransactionGroup(doc, "建立磁磚計畫 (Two-Stage)"))
                 {
-                    trans.Start();
+                    tGroup.Start();
 
                     try
                     {
@@ -59,18 +59,18 @@ namespace TilePlanner.Commands
                         TilePartEngine engine = new TilePartEngine(doc, config);
                         engine.ExecuteOnElement(selectedElement);
 
-                        trans.Commit();
+                        tGroup.Assimilate(); // 合併所有的子交易為一個復原動作
 
                         TaskDialog.Show("磁磚計畫",
-                            $"實體磁磚零件 (Parts) 產生並分割完成！\n\n" +
+                            $"實體磁磚零件 (Parts) 產生並切割完成！\n\n" +
                             $"💡 提示：如果視圖中看不到分割，請確認該視圖的屬性面板中，「零件可見性(Parts Visibility)」已經設定為「展示零件(Show Parts)」。\n");
 
                         return Result.Succeeded;
                     }
                     catch (Exception ex)
                     {
-                        trans.RollBack();
-                        message = $"磁磚分割失敗：{ex.Message}\n\n{ex.StackTrace}";
+                        tGroup.RollBack();
+                        message = $"磁磚切割失敗：{ex.Message}\n\n{ex.StackTrace}";
                         TaskDialog.Show("磁磚計畫 - 錯誤", message);
                         return Result.Failed;
                     }
@@ -141,26 +141,13 @@ namespace TilePlanner.Commands
     }
 
     /// <summary>
-    /// 選取篩選器：允許帷幕牆、帷幕系統、帷幕屋頂
+    /// 選取篩選器：只允許選取零件 (Parts)
     /// </summary>
-    public class CurtainElementSelectionFilter : ISelectionFilter
+    public class PartSelectionFilter : ISelectionFilter
     {
         public bool AllowElement(Element elem)
         {
-            // 允許牆體 (包含帷幕牆) 與樓板
-            if (elem is Wall)
-                return true;
-
-            if (elem is Floor)
-                return true;
-
-            if (elem is Ceiling)
-                return true;
-
-            if (elem is RoofBase)
-                return true;
-
-            return false;
+            return elem is Part;
         }
 
         public bool AllowReference(Reference reference, XYZ position)
@@ -168,7 +155,4 @@ namespace TilePlanner.Commands
             return false;
         }
     }
-
-    // 向後相容
-    public class CurtainWallSelectionFilter : CurtainElementSelectionFilter { }
 }

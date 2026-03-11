@@ -30,9 +30,7 @@ namespace TilePlanner.Core
             // 定義欄位 (對應 TileConfig 屬性)，Revit 2024 強制要求 double 必須指定單位 (SpecTypeId)
             builder.AddSimpleField("TileWidth", typeof(double)).SetSpec(SpecTypeId.Length);
             builder.AddSimpleField("TileHeight", typeof(double)).SetSpec(SpecTypeId.Length);
-            builder.AddSimpleField("TileThickness", typeof(double)).SetSpec(SpecTypeId.Length);
             builder.AddSimpleField("GroutWidth", typeof(double)).SetSpec(SpecTypeId.Length);
-            builder.AddSimpleField("GroutThickness", typeof(double)).SetSpec(SpecTypeId.Length);
             builder.AddSimpleField("PatternType", typeof(int)); // enum 轉 int
             builder.AddSimpleField("RunningBondOffset", typeof(double)).SetSpec(SpecTypeId.Number);
             
@@ -52,9 +50,7 @@ namespace TilePlanner.Core
 
             entity.Set("TileWidth", config.TileWidth, UnitTypeId.Feet);
             entity.Set("TileHeight", config.TileHeight, UnitTypeId.Feet);
-            entity.Set("TileThickness", config.TileThickness, UnitTypeId.Feet);
             entity.Set("GroutWidth", config.GroutWidth, UnitTypeId.Feet);
-            entity.Set("GroutThickness", config.GroutThickness, UnitTypeId.Feet);
             entity.Set("PatternType", (int)config.PatternType);
             entity.Set("RunningBondOffset", config.RunningBondOffset, UnitTypeId.General);
             entity.Set("HostElementId", hostId);
@@ -79,9 +75,7 @@ namespace TilePlanner.Core
             {
                 TileWidth = entity.Get<double>("TileWidth", UnitTypeId.Feet),
                 TileHeight = entity.Get<double>("TileHeight", UnitTypeId.Feet),
-                TileThickness = entity.Get<double>("TileThickness", UnitTypeId.Feet),
                 GroutWidth = entity.Get<double>("GroutWidth", UnitTypeId.Feet),
-                GroutThickness = entity.Get<double>("GroutThickness", UnitTypeId.Feet),
                 PatternType = (TilePatternType)entity.Get<int>("PatternType"),
                 RunningBondOffset = entity.Get<double>("RunningBondOffset", UnitTypeId.General)
             };

@@ -13,16 +13,10 @@ namespace TilePlanner.Core
         /// <summary>磁磚高度 (mm)</summary>
         public double TileHeight { get; set; } = 200;
 
-        /// <summary>磁磚厚度 (mm)</summary>
-        public double TileThickness { get; set; } = 10;
-
-        // ===== 灰縫設定（以竪框建置）=====
+        // ===== 灰縫設定（以參照平面建置）=====
 
         /// <summary>灰縫寬度 (mm)</summary>
         public double GroutWidth { get; set; } = 3;
-
-        /// <summary>灰縫厚度/深度 (mm)</summary>
-        public double GroutThickness { get; set; } = 3;
 
         // ===== 排列模式 =====
 
@@ -44,14 +38,8 @@ namespace TilePlanner.Core
         /// <summary>磁磚高度 (feet)</summary>
         public double TileHeightFeet => MmToFeet(TileHeight);
 
-        /// <summary>磁磚厚度 (feet)</summary>
-        public double TileThicknessFeet => MmToFeet(TileThickness);
-
         /// <summary>灰縫寬度 (feet)</summary>
         public double GroutWidthFeet => MmToFeet(GroutWidth);
-
-        /// <summary>灰縫厚度 (feet)</summary>
-        public double GroutThicknessFeet => MmToFeet(GroutThickness);
 
         /// <summary>一片磁磚含灰縫的水平間距 (feet)</summary>
         public double CellWidthFeet => TileWidthFeet + GroutWidthFeet;

@@ -1,60 +1,50 @@
-# 磁磚計畫外掛 (TilePlanner)
+# AntiGravity 磁磚計畫外掛 (TilePlanner)
 
-以 Revit 帷幕牆系統製作磁磚排列計畫的外掛工具。
+以 Revit 「零件 (Parts)」與「參照平面切割」架構製作最高效能磁磚排列計畫的外掛工具。
 
 ## 系統需求
 
-- **Revit 2024**
+- **Revit 2024 / 2025**
 - **Visual Studio 2022** (用於編譯)
-- **.NET Framework 4.8**
+- **.NET 8.0-windows / .NET Framework 4.8**
 
-## 功能特色
+## 核心架構與功能特色
 
-- ✅ 在帷幕牆上自動建立磁磚分割格線
-- ✅ 磁磚寬度、高度、厚度可自行輸入
-- ✅ 灰縫以竪框 (Mullion) 建置，寬度與厚度可自行輸入
-- ✅ 支援「正排」與「交丁排」兩種排列模式
-- ✅ 交丁排支援自訂偏移百分比（二丁掛 37分=30%、55分=50% 等）
-- ✅ 預設常用磁磚規格快速選擇
-- ✅ 格線整體連動（移動一條格線，同方向全部一起移動）
-- ✅ 繁體中文介面
+本外掛採用獨創的**兩階段參照平面切割法 (Two-Stage Reference Plane Division)** 與 **Auto-Exclusion (自動排除算法)**，徹底解決巨量幾何生成導致效能崩潰的痛點，在不使用布林運算 (Void Cut) 的前提下達成真實 3D 灰縫凹陷。
+
+- ✅ **基於零件 (Parts) 架構**：不依賴沉重的帷幕牆，直接切割零件實體，效能極致。
+- ✅ **雙刀排除法 (Double-Blade Exclusion)**：自動生成平行切割刀網，精準識別並隱藏灰縫實體，自然露出底層打底材質，真實呈現 3D 凹陷且算料 100% 精確。
+- ✅ **外參開口自動閃避 (Linked Openings)**：偵測交疊的外參模型 (RevitLinkInstance) 門窗，自動生成邊界刀網並剔除廢料。
+- ✅ 支援「正排 (Grid)」與「交丁 (Running Bond)」兩種排列模式。
+- ✅ 交丁排支援自訂偏移百分比（二丁掛 37分=30%、55分=50% 等）。
+- ✅ 磁磚尺寸（寬/高）與灰縫尺寸（寬）可自行輸入。
+- ✅ 格線整體連動群組化：選取任一條磁磚分割縫，使用移動工具 (MV) 或對齊 (AL)，整個面層的網格會同步更新。
 
 ## 使用方法
 
-### 1. 編譯
-
-1. 用 Visual Studio 2022 開啟 `TilePlanner.sln`
-2. 確認 Revit API 參考路徑正確（預設為 `C:\Program Files\Autodesk\Revit 2024`）
-   - 如路徑不同，請修改 `TilePlanner.csproj` 中的 `RevitApiPath`
-3. 編譯專案（Build → Build Solution）
-
-### 2. 安裝
+### 1. 安裝
 
 1. 將 `TilePlanner.addin` 複製到：
    ```
-   %AppData%\Autodesk\Revit\Addins\2024\
+   %AppData%\Autodesk\Revit\Addins\2025\
    ```
-2. 將編譯輸出的 `TilePlanner.dll` 複製到同一目錄
+2. 將編譯輸出的 `TilePlanner.dll` 複製到相同目錄。
 
-### 3. 使用
+### 2. 使用操作
 
-1. 啟動 Revit 2024
-2. 在專案中建立一面牆，並將其類型變更為**帷幕牆（無分割）**
-3. 在 Ribbon 中找到「**磁磚計畫**」標籤
-4. 點擊「**建立磁磚計畫**」
-5. 選取已建立的帷幕牆
-6. 在對話框中設定：
-   - 磁磚尺寸（寬/高/厚度）
-   - 灰縫尺寸（寬/厚度）
-   - 排列模式（正排/交丁排）
-   - 交丁偏移百分比
-7. 點擊「確定」即完成
+1. 啟動 Revit
+2. 建立一道牆體，先在右側屬性面板確認視圖的「**零件可見性 (Parts Visibility)**」設為「**展示零件 (Show Parts)**」。
+3. 選取該牆面，點擊 Revit 內建的「**建立零件 (Create Parts)**」按鈕。
+4. 在 Ribbon 中找到「**磁磚計畫**」標籤並點擊「**建立磁磚計畫**」。
+5. **選取剛剛建立的零件實體 (Part)**。
+6. 在對話框中設定尺寸與排列模式，點擊「確定」。
+7. 程式將自動進行切割並隱藏灰縫。
 
-### 4. 移除磁磚計畫
+### 3. 移除磁磚計畫
 
 1. 點擊「**移除磁磚計畫**」
-2. 選取帷幕牆
-3. 格線和竪框將被清除，還原為無分割狀態
+2. 選取任何一塊已分割的磁磚零件 (Part)
+3. 程式將自動追蹤回母體，刪除所有分割紀錄與隱形參照平面，瞬間還原單一零件狀態。
 
 ## 交丁排「X分」名稱說明
 
@@ -101,21 +91,20 @@
 └───┴───┴───┴───┘
 ```
 
-## 專案結構
+## 專案核心結構
 
 ```
 TilePlanner/
 ├── App.cs                          # Ribbon UI 入口
 ├── Commands/
-│   ├── CreateTilePlanCommand.cs    # 建立磁磚計畫
-│   ├── RemoveTilePlanCommand.cs    # 移除磁磚計畫
-│   └── ToggleLinkedMoveCommand.cs  # 格線整體連動開關
+│   ├── CreateTilePlanCommand.cs    # 呼叫分割引擎 (TransactionGroup 包裝)
+│   ├── RemoveTilePlanCommand.cs    # 追查 Host 並刪除 PartMaker 與網格群組
+│   └── ToggleLinkedMoveCommand.cs  # (未來支援) 格線連動開關
 ├── Core/
-│   ├── TileConfig.cs               # 磁磚參數配置
-│   ├── TilePattern.cs              # 排列模式
-│   ├── TileLayoutEngine.cs         # 核心排列引擎
-│   └── TileGridUpdater.cs          # 格線連動 IUpdater
+│   ├── TileConfig.cs               # 參數配置
+│   ├── TilePattern.cs              # 排列列舉
+│   ├── TilePartEngine.cs           # 核心：兩階段切割 + 雙刀流 + 自動排除
+│   └── TileDataManager.cs          # Extensible Storage 架構
 └── UI/
-    └── TilePlannerDialog.cs        # 設定對話框
+    └── TilePlannerDialog.cs        # 尺寸與排版 UI 對話框
 ```
-

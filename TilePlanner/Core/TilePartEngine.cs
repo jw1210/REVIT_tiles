@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
@@ -144,7 +144,8 @@ namespace TilePlanner.Core
             BoundingBoxUV bb = face.GetBoundingBox();
             XYZ o = face.Origin, x = face.XVector, y = face.YVector, n = face.FaceNormal;
             double ud = _config.CellWidthFeet, vd = _config.CellHeightFeet;
-            double sr = 50000.0 / 304.8, se = 1500.0 / 304.8;
+            // 參考線向外延伸各 15cm (總長 +30cm)
+            double ext = 150.0 / 304.8;
             Category sc = GetOrCreateSubcategory();
             Func<double, double, XYZ> tw = (u, v) => o + u * x + v * y;
 
@@ -160,20 +161,32 @@ namespace TilePlanner.Core
                 return rp.Id;
             };
 
-            int mh = -(int)Math.Ceiling(sr / vd), xh = (int)Math.Ceiling((bb.Max.V - bb.Min.V + sr) / vd);
+            // 僅在宿主面範圍內建立參考線，並在兩端各延伸 15cm
+            int mh = (int)Math.Floor(bb.Min.V / vd) - 1;
+            int xh = (int)Math.Ceiling(bb.Max.V / vd) + 1;
             for (int i = mh; i <= xh; i++) {
-                double vp = bb.Min.V + i * vd;
-                var id = cr(tw(bb.Min.U - se, vp), tw(bb.Max.U + se, vp), $"TileGrid_H_{i}_{hostId}");
+                double vp = i * vd;
+                var id = cr(
+                    tw(bb.Min.U - ext, vp),
+                    tw(bb.Max.U + ext, vp),
+                    $"TileGrid_H_{i}_{hostId}");
                 if (id != ElementId.InvalidElementId) h.Add(id);
             }
 
-            int mv = -(int)Math.Ceiling(sr / ud), xv = (int)Math.Ceiling((bb.Max.U - bb.Min.U + sr) / ud);
+            int mv = (int)Math.Floor(bb.Min.U / ud) - 1;
+            int xv = (int)Math.Ceiling(bb.Max.U / ud) + 1;
             for (int i = mv; i <= xv; i++) {
-                double up = bb.Min.U + i * ud;
-                var id = cr(tw(up, bb.Min.V - se), tw(up, bb.Max.V + se), $"TileGrid_VA_{i}_{hostId}");
+                double up = i * ud;
+                var id = cr(
+                    tw(up, bb.Min.V - ext),
+                    tw(up, bb.Max.V + ext),
+                    $"TileGrid_VA_{i}_{hostId}");
                 if (id != ElementId.InvalidElementId) va.Add(id);
                 if (_config.PatternType == TilePatternType.RunningBond) {
-                    var idb = cr(tw(up + ud * _config.RunningBondOffset, bb.Min.V - se), tw(up + ud * _config.RunningBondOffset, bb.Max.V + se), $"TileGrid_VB_{i}_{hostId}");
+                    var idb = cr(
+                        tw(up + ud * _config.RunningBondOffset, bb.Min.V - ext),
+                        tw(up + ud * _config.RunningBondOffset, bb.Max.V + ext),
+                        $"TileGrid_VB_{i}_{hostId}");
                     if (idb != ElementId.InvalidElementId) vb.Add(idb);
                 }
             }
@@ -183,9 +196,21 @@ namespace TilePlanner.Core
         {
             if (g <= 0) return;
             var pms = new FilteredElementCollector(_doc).OfClass(typeof(PartMaker)).Cast<PartMaker>();
-            foreach (var pm in pms) if (pm.GetSourceElementIds().Any(lr => lr.HostElementId == sid)) {
-                Parameter p = pm.LookupParameter("Divider gap") ?? pm.LookupParameter("分割間隙") ?? pm.LookupParameter("灰縫");
-                if (p != null && !p.IsReadOnly) p.Set(g);
+            foreach (var pm in pms)
+            {
+                if (!pm.GetSourceElementIds().Any(lr => lr.HostElementId == sid)) continue;
+
+                // 嘗試以多種可能名稱取得「分割間隙 / 灰縫」參數
+                Parameter p =
+                    pm.LookupParameter("Divider gap") ??          // 英文介面
+                    pm.LookupParameter("分割間隙") ??              // 常見繁中翻譯 1
+                    pm.LookupParameter("分隔間隙") ??              // 常見繁中翻譯 2（保險）
+                    pm.LookupParameter("灰縫");                    // 自訂/中文命名
+
+                if (p != null && !p.IsReadOnly)
+                {
+                    p.Set(g);
+                }
             }
         }
 
@@ -226,8 +251,54 @@ namespace TilePlanner.Core
         {
             Category cat = Category.GetCategory(_doc, BuiltInCategory.OST_CLines);
             if (cat == null) return null;
-            if (cat.SubCategories.Contains("磁磚計畫刀網")) return cat.SubCategories.get_Item("磁磚計畫刀網");
-            try { var sub = _doc.Settings.Categories.NewSubcategory(cat, "磁磚計畫刀網"); sub.LineColor = new Color(0, 160, 0); return sub; } catch { return null; }
+
+            // 優先使用新版名稱「磁磚切割網格」，若不存在則回退舊名稱「磁磚計畫刀網」
+            Category subCat = null;
+            if (cat.SubCategories.Contains("磁磚切割網格"))
+            {
+                subCat = cat.SubCategories.get_Item("磁磚切割網格");
+            }
+            else if (cat.SubCategories.Contains("磁磚計畫刀網"))
+            {
+                subCat = cat.SubCategories.get_Item("磁磚計畫刀網");
+            }
+            else
+            {
+                try
+                {
+                    subCat = _doc.Settings.Categories.NewSubcategory(cat, "磁磚切割網格");
+                    subCat.LineColor = new Color(0, 160, 0);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            // 統一使用虛線線型 (若有可用樣式)
+            try
+            {
+                LinePatternElement dashPattern = null;
+                var collector = new FilteredElementCollector(_doc).OfClass(typeof(LinePatternElement));
+                foreach (LinePatternElement lp in collector)
+                {
+                    string n = lp.Name ?? string.Empty;
+                    if (n.Contains("虛線") || n.Contains("Dash") || n.Contains("Dashed"))
+                    {
+                        dashPattern = lp;
+                        break;
+                    }
+                }
+
+                if (dashPattern != null)
+                {
+                    // Revit 2024/2025 皆支援帶 GraphicsStyleType 參數的多載
+                    subCat.SetLinePatternId(dashPattern.Id, GraphicsStyleType.Projection);
+                }
+            }
+            catch { }
+
+            return subCat;
         }
     }
 }

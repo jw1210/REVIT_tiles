@@ -25,9 +25,13 @@ namespace TilePlanner.Commands
                     return Result.Failed;
                 }
 
-                // 2. 尋找子品類：磁磚計畫刀網 (V2.X 名稱)
+                // 2. 尋找子品類：優先使用「磁磚切割網格」，若不存在則回退「磁磚計畫刀網」
                 Category subCat = null;
-                if (refPlaneCat.SubCategories.Contains("磁磚計畫刀網"))
+                if (refPlaneCat.SubCategories.Contains("磁磚切割網格"))
+                {
+                    subCat = refPlaneCat.SubCategories.get_Item("磁磚切割網格");
+                }
+                else if (refPlaneCat.SubCategories.Contains("磁磚計畫刀網"))
                 {
                     subCat = refPlaneCat.SubCategories.get_Item("磁磚計畫刀網");
                 }

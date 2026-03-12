@@ -101,11 +101,24 @@ namespace TilePlanner.Commands
                         TilePartEngine engine = new TilePartEngine(doc, config);
                         engine.ExecuteOnElement(selectedElement);
 
+                        // 自動切換當前視圖為「展示零件 (Show Parts)」，確保灰縫立刻可見
+                        using (Transaction viewTrans = new Transaction(doc, "TilePlanner - 顯示零件"))
+                        {
+                            viewTrans.Start();
+                            Parameter pv = doc.ActiveView.get_Parameter(BuiltInParameter.VIEW_PARTS_VISIBILITY);
+                            if (pv != null && !pv.IsReadOnly)
+                            {
+                                // 對應 UI 的「展示零件 (Show Parts)」
+                                pv.Set((int)PartsVisibility.ShowPartsOnly);
+                            }
+                            viewTrans.Commit();
+                        }
+
                         tGroup.Assimilate(); // 合併所有的子交易為一個復原動作
 
                         TaskDialog.Show("磁磚計畫",
                             $"實體磁磚零件 (Parts) 產生並切割完成！\n\n" +
-                            $"💡 提示：如果視圖中看不到分割，請確認該視圖的屬性面板中，「零件可見性(Parts Visibility)」已經設定為「展示零件(Show Parts)」。\n");
+                            $"當前視圖已自動切換為「展示零件 (Show Parts)」，若需檢視原始牆體，可在視圖屬性中調整「零件可見性」。\n");
 
                         return Result.Succeeded;
                     }

@@ -68,7 +68,7 @@ namespace TilePlanner.Commands
 
                     try
                     {
-                        // 2. 刪除所有與該 Host 相關的 PartMaker (這將直接復原分割)
+                        // 2. 刪除所有與該 Host 相關的 PartMaker 與零件，還原為單一宿主物件
                         ICollection<ElementId> allAssociatedParts = PartUtils.GetAssociatedParts(doc, hostId, true, true);
                         HashSet<ElementId> makersToDelete = new HashSet<ElementId>();
                         foreach (ElementId pId in allAssociatedParts)
@@ -82,11 +82,14 @@ namespace TilePlanner.Commands
 
                         if (makersToDelete.Count > 0)
                         {
+                            // 先刪除 PartMaker（移除分割關係）
                             doc.Delete(makersToDelete.ToList());
                         }
-                        else
+
+                        if (allAssociatedParts != null && allAssociatedParts.Count > 0)
                         {
-                            // 如果找不到 PartMaker，有可能這個不是透過工具分割的，或者本來就沒有
+                            // 再刪除所有零件，讓牆 / 樓板回到未分割狀態
+                            doc.Delete(allAssociatedParts.ToList());
                         }
 
                         // 3. 清理依附於此 Host 的參照平面 (Reference Planes) 與群組

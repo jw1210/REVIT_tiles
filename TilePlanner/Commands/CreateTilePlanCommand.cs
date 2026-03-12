@@ -101,7 +101,7 @@ namespace TilePlanner.Commands
                         TilePartEngine engine = new TilePartEngine(doc, config);
                         engine.ExecuteOnElement(selectedElement);
 
-                        // 自動切換當前視圖為「展示零件 (Show Parts)」，確保灰縫立刻可見
+                        // [V2.4] 自動切換當前視圖為「展示零件 (Show Parts)」，確保灰縫立刻可見
                         using (Transaction viewTrans = new Transaction(doc, "TilePlanner - 顯示零件"))
                         {
                             viewTrans.Start();
@@ -116,9 +116,18 @@ namespace TilePlanner.Commands
 
                         tGroup.Assimilate(); // 合併所有的子交易為一個復原動作
 
-                        TaskDialog.Show("磁磚計畫",
-                            $"實體磁磚零件 (Parts) 產生並切割完成！\n\n" +
-                            $"當前視圖已自動切換為「展示零件 (Show Parts)」，若需檢視原始牆體，可在視圖屬性中調整「零件可見性」。\n");
+                        // [V2.4] 更詳細的完成訊息
+                        string patternName = config.PatternType == TilePatternType.Grid ? "正排" : "交丁排";
+                        TaskDialog.Show("磁磚計畫 - 完成",
+                            $"實體磁磚零件 (Parts) 已生成並切割完成！\n\n" +
+                            $"【配置資訊】\n" +
+                            $"• 排列模式：{patternName}\n" +
+                            $"• 磁磚尺寸：{config.TileWidth} × {config.TileHeight} mm\n" +
+                            $"• 水平灰縫：{config.HGroutGap} mm | 垂直灰縫：{config.VGroutGap} mm\n" +
+                            $"• 網格狀態：已鎖定（拉動一條線，整張網子跟著平移）\n\n" +
+                            $"【視圖狀態】\n" +
+                            $"當前視圖已自動切換為「展示零件 (Show Parts)」，灰縫凹陷已可見。\n" +
+                            $"若需檢視原始牆體，可在視圖屬性中調整「零件可見性」。\n");
 
                         return Result.Succeeded;
                     }

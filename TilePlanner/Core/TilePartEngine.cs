@@ -58,6 +58,11 @@ namespace TilePlanner.Core
             using (Transaction t = new Transaction(_doc, "AntiGravity Tile V2.4.0"))
             {
                 t.Start();
+
+                // [V2.4] 模組三：舊網格清除機制 — 一鍵重繪時清除舊標註與參照平面
+                ClearOldGridElements(hostElement.Id);
+                _doc.Regenerate();
+
                 SketchPlane sketchPlane = SketchPlane.Create(_doc, plane);
                 List<BoundingBoxXYZ> openingBoxes = FindLinkedOpenings(hostElement);
 
@@ -65,47 +70,21 @@ namespace TilePlanner.Core
                 List<ElementId> vertPlanesSetA = new List<ElementId>();
                 List<ElementId> vertPlanesSetB = new List<ElementId>();
 
+                // [V2.4] 模組一：貫穿式長刀與邊界延伸
                 CreateSingleBladeGrid(fullHostTargetFace, horizPlanes, vertPlanesSetA, vertPlanesSetB, hostElement.Id, openingBoxes);
                 _doc.Regenerate();
 
-                Action<List<ElementId>, bool> lockPlanes = (planeIds, isHoriz) =>
-                {
-                    if (planeIds.Count < 2) return;
-                    XYZ xDir = fullHostTargetFace.XVector;
-                    XYZ yDir = fullHostTargetFace.YVector;
-                    var sortedIds = planeIds.OrderBy(id => {
-                        var rp = _doc.GetElement(id) as ReferencePlane;
-                        return isHoriz ? rp.BubbleEnd.DotProduct(yDir) : rp.BubbleEnd.DotProduct(xDir);
-                    }).ToList();
-
-                    ReferenceArray refArray = new ReferenceArray();
-                    foreach (var id in sortedIds) {
-                        var rp = _doc.GetElement(id) as ReferencePlane;
-                        refArray.Append(rp.GetReference());
-                    }
-                    
-                    if (refArray.Size >= 2) {
-                        try {
-                            double offset = 5000.0 / 304.8;
-                            BoundingBoxUV bbox = fullHostTargetFace.GetBoundingBox();
-                            XYZ p1 = fullHostTargetFace.Origin + (bbox.Min.U - offset) * xDir + (bbox.Min.V - offset) * yDir;
-                            XYZ p2 = fullHostTargetFace.Origin + (bbox.Max.U + offset) * xDir + (bbox.Max.V + offset) * yDir;
-                            Dimension dim = _doc.Create.NewDimension(_doc.ActiveView, Line.CreateBound(p1, p2), refArray);
-                            if (dim != null) {
-                                if (dim.Segments.Size > 0) foreach (DimensionSegment s in dim.Segments) s.IsLocked = true;
-                                else dim.IsLocked = true;
-                                _doc.ActiveView.HideElements(new List<ElementId> { dim.Id });
-                            }
-                        } catch {}
-                    }
-                };
-
-                lockPlanes(horizPlanes, true);
-                List<ElementId> allV = new List<ElementId>(vertPlanesSetA);
-                allV.AddRange(vertPlanesSetB);
-                lockPlanes(allV, false);
+                // [V2.4] 模組二：連續標註鎖定與整體平移
+                GridConstraintManager constraintMgr = new GridConstraintManager(_doc, fullHostTargetFace, _config);
+                constraintMgr.LockPlanes(horizPlanes, true);
+                
+                List<ElementId> allVertPlanes = new List<ElementId>(vertPlanesSetA);
+                allVertPlanes.AddRange(vertPlanesSetB);
+                constraintMgr.LockPlanes(allVertPlanes, false);
+                
                 _doc.Regenerate();
 
+                // 執行實體零件分割
                 if (_config.PatternType == TilePatternType.Grid) {
                     List<ElementId> all = new List<ElementId>(horizPlanes);
                     all.AddRange(vertPlanesSetA);
@@ -134,8 +113,87 @@ namespace TilePlanner.Core
                     _doc.Regenerate();
                     foreach (var s in sortedStrips) SetPartMakerDividerGap(s.Id, _config.VGroutGapFeet);
                 }
+                
+                // [V2.4] 模組四：雙向灰縫自動恢復
                 if (openingBoxes.Count > 0) ExcludeOpeningParts(targetPart.Id, openingBoxes);
+                
                 t.Commit();
+            }
+        }
+
+        /// <summary>
+        /// [V2.4 模組三] 清除該宿主相關的舊網格元素 
+        /// 包括舊參照平面與舊標註，防止約束衝突
+        /// </summary>
+        private void ClearOldGridElements(ElementId hostElementId)
+        {
+            // 1. 尋找並刪除舊參照平面（按名稱包含該宿主 ID）
+            var oldReferencePlanes = new FilteredElementCollector(_doc)
+                .OfClass(typeof(ReferencePlane))
+                .Cast<ReferencePlane>()
+                .Where(rp => rp.Name.Contains($"TileGrid_") && rp.Name.Contains(hostElementId.ToString()))
+                .ToList();
+
+            foreach (var plane in oldReferencePlanes)
+            {
+                try
+                {
+                    _doc.Delete(plane.Id);
+                }
+                catch
+                {
+                    // 若刪除失敗略過（可能已有依賴關係）
+                }
+            }
+
+            // 2. 尋找並刪除舊標註（包含該宿主相關參照平面的連續標註）
+            var allDimensions = new FilteredElementCollector(_doc)
+                .OfClass(typeof(Dimension))
+                .Cast<Dimension>()
+                .Where(d => d != null && d.References != null)
+                .ToList();
+
+            var oldDimensionIds = new List<ElementId>();
+            foreach (var dim in allDimensions)
+            {
+                bool isGridDimension = false;
+                try
+                {
+                    for (int i = 0; i < dim.References.Size; i++)
+                    {
+                        Reference rf = dim.References.get_Item(i);
+                        Element refElem = _doc.GetElement(rf.ElementId);
+                        if (refElem is ReferencePlane rp)
+                        {
+                            if (rp.Name.Contains($"TileGrid_") && rp.Name.Contains(hostElementId.ToString()))
+                            {
+                                isGridDimension = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (isGridDimension)
+                {
+                    oldDimensionIds.Add(dim.Id);
+                }
+            }
+
+            foreach (var id in oldDimensionIds)
+            {
+                try
+                {
+                    _doc.Delete(id);
+                }
+                catch
+                {
+                    // 若刪除失敗略過
+                }
             }
         }
 

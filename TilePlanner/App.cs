@@ -59,6 +59,17 @@ namespace TilePlanner
                     "啟用後，移動一條分割格線時，同方向的所有格線將一起平移，保持磁磚排列間距。";
                 PushButton toggleBtn = panel.AddItem(toggleBtnData) as PushButton;
 
+                // ===== 開關網格顯示按鈕 (V2.3) =====
+                PushButtonData toggleGridBtnData = new PushButtonData(
+                    "ToggleGridCommand",
+                    "顯示/隱藏\n網格",
+                    assemblyPath,
+                    "TilePlanner.Commands.ToggleGridCommand");
+                toggleGridBtnData.ToolTip = "切換磁磚切割網格的顯示狀態";
+                toggleGridBtnData.LongDescription =
+                    "一鍵隱藏或顯示當前視圖中的「磁磚計畫刀網」，方便出圖或進行放樣微調。";
+                PushButton toggleGridBtn = panel.AddItem(toggleGridBtnData) as PushButton;
+
                 // 註冊已移除的 Dynamic Model Updater
                 // application.ControlledApplication.DocumentOpened += (sender, args) =>
                 // {

@@ -17,7 +17,8 @@ namespace TilePlanner.UI
         private TextBox txtTileHeight;
 
         // 灰縫設定
-        private TextBox txtGroutWidth;
+        private TextBox txtHGroutWidth;
+        private TextBox txtVGroutWidth;
 
         // 排列模式
         private RadioButton rbGrid;
@@ -43,7 +44,8 @@ namespace TilePlanner.UI
             {
                 TileWidth = ParseDouble(txtTileWidth.Text, 200),
                 TileHeight = ParseDouble(txtTileHeight.Text, 200),
-                GroutWidth = ParseDouble(txtGroutWidth?.Text, 3),
+                HGroutGap = ParseDouble(txtHGroutWidth?.Text, 3),
+                VGroutGap = ParseDouble(txtVGroutWidth?.Text, 3),
                 PatternType = rbRunningBond.IsChecked == true
                     ? TilePatternType.RunningBond
                     : TilePatternType.Grid,
@@ -55,7 +57,8 @@ namespace TilePlanner.UI
         {
             Title = "磁磚計畫設定";
             Width = 440;
-            Height = 460;
+            // 改用 SizeToContent 自動延展高度，避免 UI 元素被遮蔽 (V2.3 UX)
+            SizeToContent = SizeToContent.Height;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             ResizeMode = ResizeMode.NoResize;
             Background = new SolidColorBrush(Color.FromRgb(245, 245, 245));
@@ -65,11 +68,11 @@ namespace TilePlanner.UI
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 快速選擇
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 磁磚設定
 
-            // 隱藏灰縫設定列
-            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0) }); 
+            // 灰縫設定列 (過去隱藏，現在需開啟供使用者獨立輸入雙向)
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 3 灰縫設定
 
-            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // 排列模式
-            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 按鈕
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 4 排列模式 (改為 Auto 防止被壓縮為0)
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 5 按鈕
 
             // === Row 0: 標題 ===
             var titleBlock = new TextBlock
@@ -110,10 +113,11 @@ namespace TilePlanner.UI
             tileGroup.Content = tileGrid;
             mainGrid.Children.Add(tileGroup);
 
-            // === Row 3: 灰縫設定 ===
-            var groutGroup = CreateGroupBox("灰縫設定（分割間隙）", 3);
+            // === Row 3: 雙向灰縫設定 ===
+            var groutGroup = CreateGroupBox("雙向灰縫設定（分割縫隙）", 3);
             var groutGrid = CreateInputGrid();
-            txtGroutWidth = AddInputRow(groutGrid, 0, "寬度：", "3", "mm");
+            txtHGroutWidth = AddInputRow(groutGrid, 0, "水平灰縫：", "3", "mm");
+            txtVGroutWidth = AddInputRow(groutGrid, 1, "垂直灰縫：", "3", "mm");
             groutGroup.Content = groutGrid;
             mainGrid.Children.Add(groutGroup);
 
@@ -389,7 +393,8 @@ namespace TilePlanner.UI
         {
             if (!ValidateField(txtTileWidth, "磁磚寬度")) return false;
             if (!ValidateField(txtTileHeight, "磁磚高度")) return false;
-            if (!ValidateField(txtGroutWidth, "灰縫寬度")) return false;
+            if (!ValidateField(txtHGroutWidth, "水平灰縫寬度")) return false;
+            if (!ValidateField(txtVGroutWidth, "垂直灰縫寬度")) return false;
 
             if (rbRunningBond.IsChecked == true)
             {

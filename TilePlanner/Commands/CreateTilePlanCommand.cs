@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -31,7 +32,7 @@ namespace TilePlanner.Commands
                     elemRef = uidoc.Selection.PickObject(
                         ObjectType.Element,
                         new PartSelectionFilter(),
-                        "請選取要進行磁磚分割的實體零件 (Part)");
+                        "請選取要進行磁磚分割的牆面、樓板或已建立的實體零件 (Part)");
                 }
                 catch (Autodesk.Revit.Exceptions.OperationCanceledException)
                 {
@@ -39,9 +40,6 @@ namespace TilePlanner.Commands
                 }
                 Element selectedElement = doc.GetElement(elemRef.ElementId);
 
-
-
-                // 先不檢查 grids，等交易內建立了 Tile Layer 再取。
                 // 開啟參數設定對話框
                 TilePlannerDialog dialog = new TilePlannerDialog();
                 if (dialog.ShowDialog() != true)
@@ -55,6 +53,50 @@ namespace TilePlanner.Commands
 
                     try
                     {
+                        // 檢查並自動建立零件 (Auto-Create Part)
+                        if (selectedElement is Wall || selectedElement is Floor || selectedElement is RoofBase)
+                        {
+                            if (PartUtils.AreElementsValidForCreateParts(doc, new List<ElementId> { selectedElement.Id }))
+                            {
+                                // 將目標轉為零件 (需要包在 Transaction 內)
+                                using (Transaction trans = new Transaction(doc, "建立初階零件"))
+                                {
+                                    trans.Start();
+                                    PartUtils.CreateParts(doc, new List<ElementId> { selectedElement.Id });
+                                    doc.Regenerate(); // 重新產生以獲取剛建立的零件
+                                    trans.Commit();
+                                }
+
+                                // 找到這個牆/樓板剛剛生成的所有零件
+                                ICollection<ElementId> parts = PartUtils.GetAssociatedParts(doc, selectedElement.Id, true, true);
+                                if (parts.Count > 0)
+                                {
+                                    // 預設拿第一個零件當作主要的面上瓷磚 (可能需要更聰明的篩選，這裡先取第一個)
+                                    selectedElement = doc.GetElement(parts.First());
+                                }
+                                else
+                                {
+                                    throw new Exception("無法從選取的物件產生零件實體，請確認其可見性。");
+                                }
+                            }
+                            else
+                            {
+                                // 確認它是否已經有零件了
+                                if (PartUtils.HasAssociatedParts(doc, selectedElement.Id))
+                                {
+                                    ICollection<ElementId> parts = PartUtils.GetAssociatedParts(doc, selectedElement.Id, true, true);
+                                    if (parts.Count > 0)
+                                    {
+                                        selectedElement = doc.GetElement(parts.First());
+                                    }
+                                }
+                                else
+                                {
+                                    throw new Exception("選取的物件不支援建立零件 (Parts)。");
+                                }
+                            }
+                        }
+
                         // 直接對選取的目標實體牆面/樓板進行 Parts 分割
                         TilePartEngine engine = new TilePartEngine(doc, config);
                         engine.ExecuteOnElement(selectedElement);
@@ -147,12 +189,12 @@ namespace TilePlanner.Commands
     {
         public bool AllowElement(Element elem)
         {
-            return elem is Part;
+            return elem is Part || elem is Wall || elem is Floor || elem is RoofBase || elem is Ceiling;
         }
 
         public bool AllowReference(Reference reference, XYZ position)
         {
-            return false;
+            return true;
         }
     }
 }

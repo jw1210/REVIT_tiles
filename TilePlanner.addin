@@ -38,4 +38,13 @@
     <VendorId>TilePlanner</VendorId>
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
+  <!-- 開關網格顯示指令 (V2.3) -->
+  <AddIn Type="Command">
+    <Name>開關網格顯示</Name>
+    <Assembly>TilePlanner\TilePlanner.dll</Assembly>
+    <FullClassName>TilePlanner.Commands.ToggleGridCommand</FullClassName>
+    <AddInId>E5F6A7B8-C9D0-1234-EFAB-345678901234</AddInId>
+    <VendorId>TilePlanner</VendorId>
+    <VendorDescription>磁磚計畫外掛</VendorDescription>
+  </AddIn>
 </RevitAddIns>

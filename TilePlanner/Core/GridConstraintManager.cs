@@ -47,18 +47,19 @@ namespace TilePlanner.Core
             if (planeIds == null || planeIds.Count < 2)
                 return result;
 
-            // 依據方向進行排序
+            // 依據方向進行排序 (確保連續標註的段落順序正確)
             XYZ sortAxis = isHorizontal ? _targetFace.YVector : _targetFace.XVector;
             var sortedIds = planeIds
                 .OrderBy(id =>
                 {
                     var rp = _doc.GetElement(id) as ReferencePlane;
                     if (rp == null) return double.MinValue;
+                    // 以方向投影值排序
                     return rp.BubbleEnd.DotProduct(sortAxis);
                 })
                 .ToList();
 
-            // 建立 ReferenceArray（包含所有該方向的參照平面）
+            // ✨ 【核心禁令】：ReferenceArray 僅包含程式生成的參考線，嚴禁包含宿主邊界
             ReferenceArray refArray = new ReferenceArray();
             foreach (var id in sortedIds)
             {
@@ -69,67 +70,62 @@ namespace TilePlanner.Core
                 }
             }
 
-            // 嘗試建立連續尺寸標註
+            // 建立連續尺寸標註
             if (refArray.Size >= 2)
             {
                 try
                 {
-                    // 計算標註線的位置（在目標面外延伸 500mm 避免與幾何重疊）
-                    double extensionLength = 500.0 / 304.8; // 轉換為 feet
+                    // [V3.3 UX] 建立放置標註用的虛擬線 (避開幾何干擾)
+                    // 往下或往左退約 60 公分 (-2.0 feet)
+                    double retreatOffset = -2.0; 
                     BoundingBoxUV bbox = _targetFace.GetBoundingBox();
 
                     XYZ p1, p2;
                     if (isHorizontal)
                     {
-                        // 水平標註線沿 X 方向，位置在 Y 的下方（宿主面外）
+                        // 水平連動鎖：標註線沿 X 方向
                         p1 = _targetFace.Origin
                             + (bbox.Min.U) * _targetFace.XVector
-                            + (bbox.Min.V - extensionLength) * _targetFace.YVector;
-                        p2 = _targetFace.Origin
-                            + (bbox.Max.U) * _targetFace.XVector
-                            + (bbox.Min.V - extensionLength) * _targetFace.YVector;
+                            + (bbox.Min.V + retreatOffset) * _targetFace.YVector;
+                        p2 = p1 + (10.0 * _targetFace.XVector); // 長度足夠貫穿即可
                     }
                     else
                     {
-                        // 垂直標註線沿 Y 方向，位置在 X 的左方（宿主面外）
+                        // 垂直連動鎖：標註線沿 Y 方向
                         p1 = _targetFace.Origin
-                            + (bbox.Min.U - extensionLength) * _targetFace.XVector
+                            + (bbox.Min.U + retreatOffset) * _targetFace.XVector
                             + (bbox.Min.V) * _targetFace.YVector;
-                        p2 = _targetFace.Origin
-                            + (bbox.Min.U - extensionLength) * _targetFace.XVector
-                            + (bbox.Max.V) * _targetFace.YVector;
+                        p2 = p1 + (10.0 * _targetFace.YVector);
                     }
 
-                    // 建立尺寸標註線
                     Line dimLine = Line.CreateBound(p1, p2);
 
-                    // 呼叫 API 建立連續尺寸標註
+                    // 1. 建立標註
                     Dimension gridDimension = _doc.Create.NewDimension(_doc.ActiveView, dimLine, refArray);
 
                     if (gridDimension != null)
                     {
-                        // 強制鎖定每一個段落 (DimensionSegment)
+                        // 2. 【核心鎖鏈】：強制標註的每一個段落上鎖
                         if (gridDimension.Segments.Size > 0)
                         {
                             foreach (DimensionSegment seg in gridDimension.Segments)
                             {
-                                seg.IsLocked = true; // 將每個間距鎖死
+                                seg.IsLocked = true;
                             }
                         }
                         else
                         {
-                            // 萬一只有兩條線（沒有 Segment），則鎖整條標註
                             gridDimension.IsLocked = true;
                         }
 
-                        // 隱藏標註，保持檢視幹淨（可選）
+                        // 3. 【障眼法】：立即從當前視圖隱藏標註
                         try
                         {
                             _doc.ActiveView.HideElements(new List<ElementId> { gridDimension.Id });
                         }
-                        catch
+                        catch (Exception ex)
                         {
-                            // 若隱藏失敗，不影響整個流程
+                            System.Diagnostics.Debug.WriteLine($"[GridConstraintManager] 隱藏標註失敗: {ex.Message}");
                         }
 
                         result.Add(gridDimension.Id);
@@ -137,8 +133,7 @@ namespace TilePlanner.Core
                 }
                 catch (Exception ex)
                 {
-                    // 記錄錯誤但不中斷整個流程
-                    System.Diagnostics.Debug.WriteLine($"[GridConstraintManager] 建立連續標註失敗: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"[GridConstraintManager] 建立隱形鎖鏈失敗: {ex.Message}");
                 }
             }
 

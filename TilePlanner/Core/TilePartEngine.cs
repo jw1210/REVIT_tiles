@@ -55,11 +55,11 @@ namespace TilePlanner.Core
 
             Plane plane = Plane.CreateByOriginAndBasis(fullHostTargetFace.Origin, fullHostTargetFace.XVector, fullHostTargetFace.YVector);
 
-            using (Transaction t = new Transaction(_doc, "AntiGravity Tile V2.4.0"))
+            using (Transaction t = new Transaction(_doc, "AntiGravity Tile V3.0"))
             {
                 t.Start();
 
-                // [V2.4] 模組三：舊網格清除機制 — 一鍵重繪時清除舊標註與參照平面
+                // [V3.0] 模組三/五：清空舊網格與隱形約束
                 ClearOldGridElements(hostElement.Id);
                 _doc.Regenerate();
 
@@ -70,11 +70,11 @@ namespace TilePlanner.Core
                 List<ElementId> vertPlanesSetA = new List<ElementId>();
                 List<ElementId> vertPlanesSetB = new List<ElementId>();
 
-                // [V2.4] 模組一：貫穿式長刀與邊界延伸
+                // [V3.0] 模組二：500mm 貫穿式長刀
                 CreateSingleBladeGrid(fullHostTargetFace, horizPlanes, vertPlanesSetA, vertPlanesSetB, hostElement.Id, openingBoxes);
                 _doc.Regenerate();
 
-                // [V2.4] 模組二：連續標註鎖定與整體平移
+                // [V3.0] 模組三：建立隱形約束鎖定
                 GridConstraintManager constraintMgr = new GridConstraintManager(_doc, fullHostTargetFace, _config);
                 constraintMgr.LockPlanes(horizPlanes, true);
                 
@@ -84,17 +84,34 @@ namespace TilePlanner.Core
                 
                 _doc.Regenerate();
 
-                // 執行實體零件分割
+                // [V3.2 Final] 核心模組二：兩階段切割與獨立灰縫參數 (支援雙向)
                 if (_config.PatternType == TilePatternType.Grid) {
-                    List<ElementId> all = new List<ElementId>(horizPlanes);
-                    all.AddRange(vertPlanesSetA);
-                    PartUtils.DivideParts(_doc, siblingPartIds, all, new List<Curve>(), sketchPlane.Id);
-                    foreach (var pid in siblingPartIds) SetPartMakerDividerGap(pid, _config.HGroutGapFeet);
-                } else {
-                    PartUtils.DivideParts(_doc, siblingPartIds, horizPlanes, new List<Curve>(), sketchPlane.Id);
+                    // --- 正排模式：兩階段切割 (為了支援雙向不同灰縫) ---
+                    // 階段 A：水平切割
+                    PartMaker pmH = PartUtils.DivideParts(_doc, siblingPartIds, horizPlanes, new List<Curve>(), sketchPlane.Id);
+                    if (pmH != null) SetGap(pmH, _config.HGroutGapFeet);
                     _doc.Regenerate();
-                    foreach (var pid in siblingPartIds) SetPartMakerDividerGap(pid, _config.HGroutGapFeet);
 
+                    // 抓取水平切割後產生的子零件
+                    var stripIds = new List<ElementId>();
+                    foreach (var pid in siblingPartIds) {
+                        var associated = PartUtils.GetAssociatedParts(_doc, pid, false, true);
+                        if (associated != null) stripIds.AddRange(associated);
+                    }
+
+                    // 階段 B：垂直切割
+                    if (stripIds.Count > 0) {
+                        PartMaker pmV = PartUtils.DivideParts(_doc, stripIds, vertPlanesSetA, new List<Curve>(), sketchPlane.Id);
+                        if (pmV != null) SetGap(pmV, _config.VGroutGapFeet);
+                    }
+                } else {
+                    // --- 交丁模式：兩階段切割 ---
+                    // 階段 A：水平切割
+                    PartMaker pmH = PartUtils.DivideParts(_doc, siblingPartIds, horizPlanes, new List<Curve>(), sketchPlane.Id);
+                    if (pmH != null) SetGap(pmH, _config.HGroutGapFeet);
+                    _doc.Regenerate();
+
+                    // 階段 B：垂直切割 (按行交替)
                     var stripIds = new List<ElementId>();
                     foreach (var pid in siblingPartIds) {
                         var associated = PartUtils.GetAssociatedParts(_doc, pid, false, true);
@@ -108,13 +125,18 @@ namespace TilePlanner.Core
 
                     for (int i = 0; i < sortedStrips.Count; i++) {
                         var vps = (i % 2 == 0) ? vertPlanesSetA : vertPlanesSetB;
-                        if (vps.Count > 0) PartUtils.DivideParts(_doc, new List<ElementId> { sortedStrips[i].Id }, vps, new List<Curve>(), sketchPlane.Id);
+                        if (vps.Count > 0) {
+                            PartMaker pmV = PartUtils.DivideParts(_doc, new List<ElementId> { sortedStrips[i].Id }, vps, new List<Curve>(), sketchPlane.Id);
+                            if (pmV != null) SetGap(pmV, _config.VGroutGapFeet);
+                        }
                     }
-                    _doc.Regenerate();
-                    foreach (var s in sortedStrips) SetPartMakerDividerGap(s.Id, _config.VGroutGapFeet);
+                }
+
+                // [V3.2 Final] 核心模組四：強制零件可見 (ShowPartsOnly)
+                if (_doc.ActiveView != null) {
+                    _doc.ActiveView.PartsVisibility = PartsVisibility.ShowPartsOnly;
                 }
                 
-                // [V2.4] 模組四：雙向灰縫自動恢復
                 if (openingBoxes.Count > 0) ExcludeOpeningParts(targetPart.Id, openingBoxes);
                 
                 t.Commit();
@@ -202,8 +224,10 @@ namespace TilePlanner.Core
             BoundingBoxUV bb = face.GetBoundingBox();
             XYZ o = face.Origin, x = face.XVector, y = face.YVector, n = face.FaceNormal;
             double ud = _config.CellWidthFeet, vd = _config.CellHeightFeet;
-            // 參考線向外延伸各 15cm (總長 +30cm)
-            double ext = 150.0 / 304.8;
+            
+            // [V3.0] 模組二：邊界安全延伸量 (至少 500mm)
+            double ext = 500.0 / 304.8; 
+            
             Category sc = GetOrCreateSubcategory();
             Func<double, double, XYZ> tw = (u, v) => o + u * x + v * y;
 
@@ -219,56 +243,72 @@ namespace TilePlanner.Core
                 return rp.Id;
             };
 
-            // 僅在宿主面範圍內建立參考線，並在兩端各延伸 15cm
-            int mh = (int)Math.Floor(bb.Min.V / vd) - 1;
-            int xh = (int)Math.Ceiling(bb.Max.V / vd) + 1;
-            for (int i = mh; i <= xh; i++) {
-                double vp = i * vd;
-                var id = cr(
-                    tw(bb.Min.U - ext, vp),
-                    tw(bb.Max.U + ext, vp),
-                    $"TileGrid_H_{i}_{hostId}");
+            // [V3.3.2] 核心改進：起點補償 (Flush Start 邏輯)
+            // 為避免最邊緣的磁磚被灰縫退縮切到，網格起點必須從「邊界 - 半個灰縫」開始
+            double hGapHalf = _config.HGroutGapFeet / 2.0;
+            double vGapHalf = _config.VGroutGapFeet / 2.0;
+
+            // 建立貫穿全牆的長直線刀 (水平)
+            int hIdx = 0;
+            for (double vp = bb.Min.V - hGapHalf; vp <= bb.Max.V + vd; vp += vd) {
+                var id = cr(tw(bb.Min.U - ext, vp), tw(bb.Max.U + ext, vp), $"TileGrid_H_{hIdx++}_{hostId}");
                 if (id != ElementId.InvalidElementId) h.Add(id);
             }
 
-            int mv = (int)Math.Floor(bb.Min.U / ud) - 1;
-            int xv = (int)Math.Ceiling(bb.Max.U / ud) + 1;
-            for (int i = mv; i <= xv; i++) {
-                double up = i * ud;
-                var id = cr(
-                    tw(up, bb.Min.V - ext),
-                    tw(up, bb.Max.V + ext),
-                    $"TileGrid_VA_{i}_{hostId}");
+            // 垂直刀 (分為 A/B 兩組)
+            int vIdx = 0;
+            for (double up = bb.Min.U - vGapHalf; up <= bb.Max.U + ud; up += ud) {
+                // Set A
+                var id = cr(tw(up, bb.Min.V - ext), tw(up, bb.Max.V + ext), $"TileGrid_VA_{vIdx}_{hostId}");
                 if (id != ElementId.InvalidElementId) va.Add(id);
+
+                // Set B (交丁偏移)
                 if (_config.PatternType == TilePatternType.RunningBond) {
-                    var idb = cr(
-                        tw(up + ud * _config.RunningBondOffset, bb.Min.V - ext),
-                        tw(up + ud * _config.RunningBondOffset, bb.Max.V + ext),
-                        $"TileGrid_VB_{i}_{hostId}");
+                    double offsetUp = up + ud * _config.RunningBondOffset;
+                    var idb = cr(tw(offsetUp, bb.Min.V - ext), tw(offsetUp, bb.Max.V + ext), $"TileGrid_VB_{vIdx}_{hostId}");
                     if (idb != ElementId.InvalidElementId) vb.Add(idb);
                 }
+                vIdx++;
             }
         }
 
-        private void SetPartMakerDividerGap(ElementId sid, double g)
+        /// <summary>
+        /// [V2.0] 直接對 PartMaker 設定分割縫隙 (Revit 內部單位英呎)
+        /// </summary>
+        private void SetGap(PartMaker maker, double gapFeet)
         {
-            if (g <= 0) return;
-            var pms = new FilteredElementCollector(_doc).OfClass(typeof(PartMaker)).Cast<PartMaker>();
-            foreach (var pm in pms)
+            if (maker == null || gapFeet <= 0) return;
+
+            // [V3.3 Refined] 優先使用內建參數 ID (-1140510 = PART_MAKER_DIVIDER_GAP)
+            // 直接以整數轉型避免 SDK 缺少定義導致無法編譯
+            Parameter p = maker.get_Parameter((BuiltInParameter)(-1140510)) ??
+                          maker.LookupParameter("Divider gap") ??
+                          maker.LookupParameter("分割間隙") ??
+                          maker.LookupParameter("分隔間隙") ??
+                          maker.LookupParameter("灰縫") ??
+                          maker.LookupParameter("Grout");
+
+            // 如果常用名稱都找不到，進行關鍵字掃描 (最後手段)
+            if (p == null)
             {
-                if (!pm.GetSourceElementIds().Any(lr => lr.HostElementId == sid)) continue;
-
-                // 嘗試以多種可能名稱取得「分割間隙 / 灰縫」參數
-                Parameter p =
-                    pm.LookupParameter("Divider gap") ??          // 英文介面
-                    pm.LookupParameter("分割間隙") ??              // 常見繁中翻譯 1
-                    pm.LookupParameter("分隔間隙") ??              // 常見繁中翻譯 2（保險）
-                    pm.LookupParameter("灰縫");                    // 自訂/中文命名
-
-                if (p != null && !p.IsReadOnly)
+                foreach (Parameter param in maker.Parameters)
                 {
-                    p.Set(g);
+                    string name = param.Definition.Name;
+                    if (name.Contains("間隙") || name.Contains("Gap") || name.Contains("縫"))
+                    {
+                        p = param;
+                        break;
+                    }
                 }
+            }
+
+            if (p != null && !p.IsReadOnly)
+            {
+                p.Set(gapFeet);
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[TilePartEngine] 警告：無法找到或寫入灰縫參數");
             }
         }
 

@@ -43,10 +43,31 @@ namespace TilePlanner.Commands
                 {
                     t.Start();
                     
-                    bool isHidden = subCat.get_Visible(doc.ActiveView) == false; // get_Visible 為 true 時代表顯示中
+                    // 取得子品類當前的隱藏狀態
+                    bool currentlyHidden = doc.ActiveView.GetCategoryHidden(subCat.Id);
                     
-                    // 如果原本被隱藏，則顯示；反之則隱藏
-                    doc.ActiveView.SetCategoryHidden(subCat.Id, !isHidden);
+                    // 如果原本是隱藏的，現在使用者要「開啟」：
+                    if (currentlyHidden)
+                    {
+                        // 1. 強制確保母品類「參照平面」是開啟的
+                        if (doc.ActiveView.CanCategoryBeHidden(refPlaneCat.Id))
+                        {
+                            doc.ActiveView.SetCategoryHidden(refPlaneCat.Id, false);
+                        }
+                        // 2. 開啟子品類
+                        if (doc.ActiveView.CanCategoryBeHidden(subCat.Id))
+                        {
+                            doc.ActiveView.SetCategoryHidden(subCat.Id, false);
+                        }
+                    }
+                    else
+                    {
+                        // 如果原本是開啟的，直接關閉子品類即可
+                        if (doc.ActiveView.CanCategoryBeHidden(subCat.Id))
+                        {
+                            doc.ActiveView.SetCategoryHidden(subCat.Id, true);
+                        }
+                    }
 
                     t.Commit();
                 }

@@ -80,22 +80,24 @@ namespace TilePlanner.Core
                     double retreatOffset = -2.0; 
                     BoundingBoxUV bbox = _targetFace.GetBoundingBox();
 
+                    // [V3.3.3 Bugfix] 修正標註線方向：標註線必須與被標註的平面垂直
                     XYZ p1, p2;
                     if (isHorizontal)
                     {
-                        // 水平連動鎖：標註線沿 X 方向
+                        // 被標註的是水平面 (Parallel to X)，標註線必須是垂直方向 (Parallel to Y)
+                        // 這樣才能測量 Y 軸方向的間距
                         p1 = _targetFace.Origin
-                            + (bbox.Min.U) * _targetFace.XVector
+                            + (bbox.Min.U + 1.0) * _targetFace.XVector // 往右偏一點避開邊界
                             + (bbox.Min.V + retreatOffset) * _targetFace.YVector;
-                        p2 = p1 + (10.0 * _targetFace.XVector); // 長度足夠貫穿即可
+                        p2 = p1 + (10.0 * _targetFace.YVector); // 方向改為 Y
                     }
                     else
                     {
-                        // 垂直連動鎖：標註線沿 Y 方向
+                        // 被標註的是垂直面 (Parallel to Y)，標註線必須是水平方向 (Parallel to X)
                         p1 = _targetFace.Origin
                             + (bbox.Min.U + retreatOffset) * _targetFace.XVector
-                            + (bbox.Min.V) * _targetFace.YVector;
-                        p2 = p1 + (10.0 * _targetFace.YVector);
+                            + (bbox.Min.V + 1.0) * _targetFace.YVector; // 往上偏一點
+                        p2 = p1 + (10.0 * _targetFace.XVector); // 方向改為 X
                     }
 
                     Line dimLine = Line.CreateBound(p1, p2);
@@ -106,6 +108,7 @@ namespace TilePlanner.Core
                     if (gridDimension != null)
                     {
                         // 2. 【核心鎖鏈】：強制標註的每一個段落上鎖
+                        // 這會鎖定「每兩條線之間的間距」，所以移動一條，全體都會平移
                         if (gridDimension.Segments.Size > 0)
                         {
                             foreach (DimensionSegment seg in gridDimension.Segments)
@@ -123,9 +126,9 @@ namespace TilePlanner.Core
                         {
                             _doc.ActiveView.HideElements(new List<ElementId> { gridDimension.Id });
                         }
-                        catch (Exception ex)
+                        catch
                         {
-                            System.Diagnostics.Debug.WriteLine($"[GridConstraintManager] 隱藏標註失敗: {ex.Message}");
+                            // 隱藏失敗通常是因為該品類已被隱藏，不影響功能
                         }
 
                         result.Add(gridDimension.Id);

@@ -61,11 +61,10 @@ namespace TilePlanner.Core
             Element hostOriginal = currentElement;
             if (hostOriginal == null || hostOriginal is Part) return; 
 
-            PlanarFace fullHostTargetFace = GetTargetFace(hostOriginal);
-            if (fullHostTargetFace == null) return;
-            Plane plane = Plane.CreateByOriginAndBasis(fullHostTargetFace.Origin, fullHostTargetFace.XVector, fullHostTargetFace.YVector);
-
-            // 2. [破壞與還原]
+            // ==========================================
+            // [V3.2 核心修正] 先破壞並刷新，再抓取幾何！
+            // 必須先讓牆壁回歸真實尺寸並 Regenerate，才能抓到拉伸後的新 BoundingBox
+            // ==========================================
             _gridService.ClearOldGridElements(hostOriginal.Id); 
             
             var rootParts = PartUtils.GetAssociatedParts(_doc, hostOriginal.Id, false, false);
@@ -79,8 +78,15 @@ namespace TilePlanner.Core
             if (makersToDelete.Count > 0)
             {
                 _doc.Delete(makersToDelete.ToList()); 
-                _doc.Regenerate(); // 必須刷新，讓後續能抓到原始未分割尺寸
+                _doc.Regenerate(); // [第一次刷新]：讓牆體瞬間回歸原始狀態與最新尺寸
             }
+
+            // ==========================================
+            // 現在牆壁乾淨了，尺寸也是最新的，可以安全抓取表面幾何了
+            // ==========================================
+            PlanarFace fullHostTargetFace = GetTargetFace(hostOriginal);
+            if (fullHostTargetFace == null) return;
+            Plane plane = Plane.CreateByOriginAndBasis(fullHostTargetFace.Origin, fullHostTargetFace.XVector, fullHostTargetFace.YVector);
 
             List<ElementId> siblingPartIds = PartUtils.GetAssociatedParts(_doc, hostOriginal.Id, false, true).ToList();
             SketchPlane sketchPlane = SketchPlane.Create(_doc, plane);
@@ -92,7 +98,7 @@ namespace TilePlanner.Core
 
             // 3. 建立網格與約束 (內含 2mm 邊界保護)
             CreateGridWeb(fullHostTargetFace, horizPlanes, vertPlanesSetA, vertPlanesSetB, hostOriginal.Id);
-            _doc.Regenerate();
+            _doc.Regenerate(); // [第二次刷新]：讓剛建立的網格生效
 
             GridConstraintManager constraintMgr = new GridConstraintManager(_doc, fullHostTargetFace, _config);
             constraintMgr.LockPlanes(horizPlanes, true);
@@ -100,7 +106,7 @@ namespace TilePlanner.Core
             List<ElementId> allVertPlanes = new List<ElementId>(vertPlanesSetA);
             allVertPlanes.AddRange(vertPlanesSetB);
             constraintMgr.LockPlanes(allVertPlanes, false);
-            _doc.Regenerate();
+            _doc.Regenerate(); // [第三次刷新]：讓標註鎖定生效
 
             // 4. 兩階段分割與開口排除
             PerformDivision(siblingPartIds, horizPlanes, vertPlanesSetA, vertPlanesSetB, sketchPlane.Id, fullHostTargetFace.YVector);
@@ -165,7 +171,7 @@ namespace TilePlanner.Core
                     if (offsetU > bb.Min.U + edgeTolerance && offsetU < bb.Max.U - edgeTolerance)
                     {
                         XYZ p1_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Min.V - ext);
-                        XYZ p2_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Max.U + ext);
+                        XYZ p2_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Max.V + ext);
                         var idB = _gridService.CreateReferencePlane(p1_B, p2_B, n, $"TileGrid_VB_{i}_{hostId}", sc);
                         if (idB != ElementId.InvalidElementId) vb.Add(idB);
                     }

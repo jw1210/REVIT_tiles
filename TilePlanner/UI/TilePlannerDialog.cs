@@ -56,7 +56,7 @@ namespace TilePlanner.UI
         private void BuildUI()
         {
             Title = "磁磚計畫設定";
-            Width = 440;
+            Width = 460;
             // 改用 SizeToContent 自動延展高度，避免 UI 元素被遮蔽 (V2.3 UX)
             SizeToContent = SizeToContent.Height;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -110,6 +110,22 @@ namespace TilePlanner.UI
             var tileGrid = CreateInputGrid();
             txtTileWidth = AddInputRow(tileGrid, 0, "寬度：", "200", "mm");
             txtTileHeight = AddInputRow(tileGrid, 1, "高度：", "200", "mm");
+
+            // [V3.3] 對調按鈕 (磁磚尺寸)
+            var btnSwapSize = new Button
+            {
+                Content = "🔄 對調長寬",
+                Height = 25,
+                Width = 80,
+                Margin = new Thickness(5, 0, 0, 0),
+                ToolTip = "一鍵將磁磚的長度與寬度對調"
+            };
+            btnSwapSize.Click += BtnSwapSize_Click;
+            Grid.SetRow(btnSwapSize, 0);
+            Grid.SetRowSpan(btnSwapSize, 2); // 跨兩列
+            Grid.SetColumn(btnSwapSize, 3);
+            tileGrid.Children.Add(btnSwapSize);
+
             tileGroup.Content = tileGrid;
             mainGrid.Children.Add(tileGroup);
 
@@ -118,6 +134,22 @@ namespace TilePlanner.UI
             var groutGrid = CreateInputGrid();
             txtHGroutWidth = AddInputRow(groutGrid, 0, "水平灰縫：", "3", "mm");
             txtVGroutWidth = AddInputRow(groutGrid, 1, "垂直灰縫：", "3", "mm");
+
+            // [V3.3] 對調按鈕 (灰縫)
+            var btnSwapGrout = new Button
+            {
+                Content = "🔄 對調灰縫",
+                Height = 25,
+                Width = 80,
+                Margin = new Thickness(5, 0, 0, 0),
+                ToolTip = "一鍵將垂直與水平的灰縫寬度對調"
+            };
+            btnSwapGrout.Click += BtnSwapGrout_Click;
+            Grid.SetRow(btnSwapGrout, 0);
+            Grid.SetRowSpan(btnSwapGrout, 2); // 跨兩列
+            Grid.SetColumn(btnSwapGrout, 3);
+            groutGrid.Children.Add(btnSwapGrout);
+
             groutGroup.Content = groutGrid;
             mainGrid.Children.Add(groutGroup);
 
@@ -292,6 +324,7 @@ namespace TilePlanner.UI
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // [V3.3] 增加第 4 欄給對調按鈕
             return grid;
         }
 
@@ -334,6 +367,20 @@ namespace TilePlanner.UI
         }
 
         // ===== 事件處理 =====
+
+        private void BtnSwapSize_Click(object sender, RoutedEventArgs e)
+        {
+            string temp = txtTileWidth.Text;
+            txtTileWidth.Text = txtTileHeight.Text;
+            txtTileHeight.Text = temp;
+        }
+
+        private void BtnSwapGrout_Click(object sender, RoutedEventArgs e)
+        {
+            string temp = txtHGroutWidth.Text;
+            txtHGroutWidth.Text = txtVGroutWidth.Text;
+            txtVGroutWidth.Text = temp;
+        }
 
         private void CmbPreset_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -391,11 +438,15 @@ namespace TilePlanner.UI
 
         private bool ValidateInputs()
         {
-            if (!ValidateField(txtTileWidth, "磁磚寬度")) return false;
-            if (!ValidateField(txtTileHeight, "磁磚高度")) return false;
-            if (!ValidateField(txtHGroutWidth, "水平灰縫寬度")) return false;
-            if (!ValidateField(txtVGroutWidth, "垂直灰縫寬度")) return false;
+            // 1. 磁磚規格驗證 (必須為正數)
+            if (!ValidateField(txtTileWidth, "磁磚寬度", true)) return false;
+            if (!ValidateField(txtTileHeight, "磁磚高度", true)) return false;
 
+            // 2. 灰縫驗證 (不可為負數，允許為0)
+            if (!ValidateField(txtHGroutWidth, "水平灰縫寬度", false)) return false;
+            if (!ValidateField(txtVGroutWidth, "垂直灰縫寬度", false)) return false;
+
+            // 3. 交丁偏移驗證 (僅在交丁模式下檢查)
             if (rbRunningBond.IsChecked == true)
             {
                 if (!double.TryParse(txtOffsetInput.Text, out double offset) ||
@@ -412,12 +463,16 @@ namespace TilePlanner.UI
             return true;
         }
 
-        private bool ValidateField(TextBox textBox, string fieldName)
+        private bool ValidateField(TextBox textBox, string fieldName, bool mustBePositive)
         {
-            if (textBox == null) return true; // 若該欄位不存在則直接略過驗證
-            if (!double.TryParse(textBox.Text, out double value) || value <= 0)
+            if (textBox == null) return true;
+
+            bool isValid = double.TryParse(textBox.Text, out double value);
+            
+            if (!isValid || (mustBePositive && value <= 0) || (!mustBePositive && value < 0))
             {
-                MessageBox.Show($"請輸入有效的{fieldName}（正數）。", "輸入錯誤",
+                string requirement = mustBePositive ? "大於 0 的有效數字" : "不小於 0 的有效數字";
+                MessageBox.Show($"請在「{fieldName}」輸入{requirement}！", "輸入格式錯誤",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 textBox.Focus();
                 textBox.SelectAll();

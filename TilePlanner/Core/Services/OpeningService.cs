@@ -5,17 +5,10 @@ using Autodesk.Revit.DB;
 
 namespace TilePlanner.Core.Services
 {
-    /// <summary>
-    /// 處理連結檔案對開口侦測與零件排除
-    /// </summary>
     public class OpeningService
     {
         private readonly Document _doc;
-
-        public OpeningService(Document doc)
-        {
-            _doc = doc;
-        }
+        public OpeningService(Document doc) { _doc = doc; }
 
         public List<BoundingBoxXYZ> FindLinkedOpenings(Element host)
         {
@@ -23,13 +16,14 @@ namespace TilePlanner.Core.Services
             var lks = new FilteredElementCollector(_doc).OfClass(typeof(RevitLinkInstance)).Cast<RevitLinkInstance>();
             BoundingBoxXYZ hb = host.get_BoundingBox(null);
             if (hb == null) return res;
+
             Outline ho = new Outline(hb.Min, hb.Max);
-            
             foreach (var l in lks) {
                 Document ld = l.GetLinkDocument();
                 if (ld == null) continue;
                 var ops = new FilteredElementCollector(ld).WhereElementIsNotElementType()
                     .WherePasses(new LogicalOrFilter(new ElementCategoryFilter(BuiltInCategory.OST_Windows), new ElementCategoryFilter(BuiltInCategory.OST_Doors)));
+
                 Transform t = l.GetTransform();
                 foreach (var op in ops) {
                     BoundingBoxXYZ ob = op.get_BoundingBox(null);
@@ -41,9 +35,10 @@ namespace TilePlanner.Core.Services
             return res;
         }
 
-        public void ExcludePartsInOpenings(ElementId hostPartId, List<BoundingBoxXYZ> opens)
+        // [V2.5 修正] 變更傳入參數為 hostOriginalId
+        public void ExcludePartsInOpenings(ElementId hostOriginalId, List<BoundingBoxXYZ> opens)
         {
-            var ids = PartUtils.GetAssociatedParts(_doc, hostPartId, false, true);
+            var ids = PartUtils.GetAssociatedParts(_doc, hostOriginalId, false, true);
             foreach (var id in ids) {
                 var p = _doc.GetElement(id) as Part;
                 if (p == null || p.get_BoundingBox(null) == null) continue;

@@ -6,10 +6,6 @@ using TilePlanner.Core.Services;
 
 namespace TilePlanner.Core
 {
-    /// <summary>
-    /// 磁磚計畫編排管理器 (Orchestrator)
-    /// 負責協調各種服務以完成磁磚生成流程
-    /// </summary>
     public class TilePartEngine
     {
         private readonly Document _doc;
@@ -31,57 +27,73 @@ namespace TilePlanner.Core
         {
             if (!(hostElement is Part targetPart)) return;
 
-            ICollection<ElementId> sourceElementIds = targetPart.GetSourceElementIds().Select(lr => lr.HostElementId).ToList();
-            if (!sourceElementIds.Any()) return;
-            Element hostOriginal = _doc.GetElement(sourceElementIds.First());
+            // ==========================================
+            // 1. [母體溯源] 確保操作永遠針對最源頭的 Wall/Floor
+            // ==========================================
+            ElementId currentId = targetPart.Id;
+            Element currentElement = targetPart;
+            while (currentElement is Part p)
+            {
+                var sourceIds = p.GetSourceElementIds();
+                if (sourceIds == null || sourceIds.Count == 0) break;
+                currentId = sourceIds.First().HostElementId;
+                currentElement = _doc.GetElement(currentId);
+            }
+            Element hostOriginal = currentElement;
+            if (hostOriginal == null || hostOriginal is Part) return; 
 
-            // 1. 取得宿主最主要的面 (通常是面積最大的面)
             PlanarFace fullHostTargetFace = GetTargetFace(hostOriginal);
             if (fullHostTargetFace == null) return;
-
-            // 2. 獲取所有同源的零件
-            List<ElementId> siblingPartIds = GetSiblingParts(sourceElementIds);
-
             Plane plane = Plane.CreateByOriginAndBasis(fullHostTargetFace.Origin, fullHostTargetFace.XVector, fullHostTargetFace.YVector);
 
-            using (Transaction t = new Transaction(_doc, "AntiGravity Tile V4.0 (Modular)"))
+            using (Transaction t = new Transaction(_doc, "AntiGravity Tile V2.7 (Redraw Architecture)"))
             {
                 t.Start();
+                
+                // ==========================================
+                // 2. [一鍵重繪機制] 破壞與還原 (支援尺寸自適應)
+                // ==========================================
+                _gridService.ClearOldGridElements(hostOriginal.Id); // 清除舊刀網與標註
+                
+                var allAssociatedParts = PartUtils.GetAssociatedParts(_doc, hostOriginal.Id, true, true);
+                var makersToDelete = new HashSet<ElementId>();
+                foreach (var pId in allAssociatedParts)
+                {
+                    var pm = PartUtils.GetAssociatedPartMaker(_doc, pId);
+                    if (pm != null) makersToDelete.Add(pm.Id);
+                }
+                if (makersToDelete.Count > 0)
+                {
+                    _doc.Delete(makersToDelete.ToList()); // 刪除舊分割紀錄
+                    _doc.Regenerate(); // 強制刷新，讓牆體回歸「最新拉伸後」的完整尺寸
+                }
 
-                // [模組：清理] 清空舊網格與隱形約束
-                _gridService.ClearOldGridElements(hostElement.Id);
-                _doc.Regenerate();
-
+                List<ElementId> siblingPartIds = PartUtils.GetAssociatedParts(_doc, hostOriginal.Id, false, true).ToList();
                 SketchPlane sketchPlane = SketchPlane.Create(_doc, plane);
-                List<BoundingBoxXYZ> openingBoxes = _openingService.FindLinkedOpenings(hostElement);
+                List<BoundingBoxXYZ> openingBoxes = _openingService.FindLinkedOpenings(hostOriginal);
 
                 List<ElementId> horizPlanes = new List<ElementId>();
                 List<ElementId> vertPlanesSetA = new List<ElementId>();
                 List<ElementId> vertPlanesSetB = new List<ElementId>();
 
-                // [模組：網格生成] 建立貫穿式長刀
-                CreateGridWeb(fullHostTargetFace, horizPlanes, vertPlanesSetA, vertPlanesSetB, hostElement.Id);
+                // 3. 依據最新尺寸建立網格 (內含邊界保護)
+                CreateGridWeb(fullHostTargetFace, horizPlanes, vertPlanesSetA, vertPlanesSetB, hostOriginal.Id);
                 _doc.Regenerate();
 
-                // [模組：約束] 建立隱形約束鎖定
+                // 4. 重新建立整體連動約束
                 GridConstraintManager constraintMgr = new GridConstraintManager(_doc, fullHostTargetFace, _config);
                 constraintMgr.LockPlanes(horizPlanes, true);
                 
                 List<ElementId> allVertPlanes = new List<ElementId>(vertPlanesSetA);
                 allVertPlanes.AddRange(vertPlanesSetB);
                 constraintMgr.LockPlanes(allVertPlanes, false);
-                
                 _doc.Regenerate();
 
-                // [模組：分割] 兩階段切割與獨立灰縫參數
+                // 5. 執行分割與開口排除
                 PerformDivision(siblingPartIds, horizPlanes, vertPlanesSetA, vertPlanesSetB, sketchPlane.Id, fullHostTargetFace.YVector);
 
-                // [模組：視覺] 強制零件可見
                 if (_doc.ActiveView != null) _doc.ActiveView.PartsVisibility = PartsVisibility.ShowPartsOnly;
-                
-                // [模組：開口] 排除開口處零件
-                if (openingBoxes.Count > 0) _openingService.ExcludePartsInOpenings(targetPart.Id, openingBoxes);
-                
+                if (openingBoxes.Count > 0) _openingService.ExcludePartsInOpenings(hostOriginal.Id, openingBoxes);
                 t.Commit();
             }
         }
@@ -92,32 +104,17 @@ namespace TilePlanner.Core
             GeometryElement geom = host.get_Geometry(opt);
             PlanarFace target = null;
             double maxArea = 0;
-
             foreach (GeometryObject obj in geom)
             {
                 if (obj is Solid s && s.Faces.Size > 0)
                 {
                     foreach (Face f in s.Faces)
                     {
-                        if (f is PlanarFace pf && pf.Area > maxArea)
-                        {
-                            maxArea = pf.Area;
-                            target = pf;
-                        }
+                        if (f is PlanarFace pf && pf.Area > maxArea) { maxArea = pf.Area; target = pf; }
                     }
                 }
             }
             return target;
-        }
-
-        private List<ElementId> GetSiblingParts(ICollection<ElementId> sourceIds)
-        {
-            return new FilteredElementCollector(_doc)
-                .OfClass(typeof(Part))
-                .Cast<Part>()
-                .Where(p => p.GetSourceElementIds().Any(lr => sourceIds.Contains(lr.HostElementId)))
-                .Select(p => p.Id)
-                .ToList();
         }
 
         private void CreateGridWeb(PlanarFace face, List<ElementId> h, List<ElementId> va, List<ElementId> vb, ElementId hostId)
@@ -125,12 +122,22 @@ namespace TilePlanner.Core
             BoundingBoxUV bb = face.GetBoundingBox();
             XYZ x = face.XVector, y = face.YVector, n = face.FaceNormal, o = face.Origin;
             double ud = _config.CellWidthFeet, vd = _config.CellHeightFeet;
-            double ext = 500.0 / 304.8; 
             
+            // 視覺整潔：參考線長度僅向兩端各延伸 30 公分 (避免無限延伸與約束崩潰)
+            double ext = 300.0 / 304.8; 
+            
+            // ==========================================
+            // 3. [邊界保護容差] Edge Tolerance
+            // 約 0.0065 呎 (2mm)，剔除剛好壓在極限邊端度的網格
+            // ==========================================
+            double edgeTolerance = 0.0065; 
+
             Category sc = _gridService.GetOrCreateSubcategory();
 
-            // 水平點位
+            // 水平網格 (V 軸) - 保護牆頂/牆底或樓板長度邊緣
             var hPoints = GeometryService.CalculateGridPoints(bb.Min.V, bb.Max.V, vd, _config.HGroutGapFeet / 2.0);
+            hPoints.RemoveAll(p => p <= bb.Min.V + edgeTolerance || p >= bb.Max.V - edgeTolerance);
+
             for (int i = 0; i < hPoints.Count; i++)
             {
                 XYZ p1 = GeometryService.ProjectToXYZ(o, x, y, bb.Min.U - ext, hPoints[i]);
@@ -139,8 +146,10 @@ namespace TilePlanner.Core
                 if (id != ElementId.InvalidElementId) h.Add(id);
             }
 
-            // 垂直點位
+            // 垂直網格 (U 軸) - 保護牆體左右或樓板寬度邊緣
             var vPoints = GeometryService.CalculateGridPoints(bb.Min.U, bb.Max.U, ud, _config.VGroutGapFeet / 2.0);
+            vPoints.RemoveAll(p => p <= bb.Min.U + edgeTolerance || p >= bb.Max.U - edgeTolerance);
+
             for (int i = 0; i < vPoints.Count; i++)
             {
                 XYZ p1_A = GeometryService.ProjectToXYZ(o, x, y, vPoints[i], bb.Min.V - ext);
@@ -151,29 +160,35 @@ namespace TilePlanner.Core
                 if (_config.PatternType == TilePatternType.RunningBond)
                 {
                     double offsetU = vPoints[i] + ud * _config.RunningBondOffset;
-                    XYZ p1_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Min.V - ext);
-                    XYZ p2_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Max.V + ext);
-                    var idB = _gridService.CreateReferencePlane(p1_B, p2_B, n, $"TileGrid_VB_{i}_{hostId}", sc);
-                    if (idB != ElementId.InvalidElementId) vb.Add(idB);
+                    
+                    // 交丁排的 B 網格同樣需要過濾邊界
+                    if (offsetU > bb.Min.U + edgeTolerance && offsetU < bb.Max.U - edgeTolerance)
+                    {
+                        XYZ p1_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Min.V - ext);
+                        XYZ p2_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Max.U + ext);
+                        var idB = _gridService.CreateReferencePlane(p1_B, p2_B, n, $"TileGrid_VB_{i}_{hostId}", sc);
+                        if (idB != ElementId.InvalidElementId) vb.Add(idB);
+                    }
                 }
             }
         }
 
         private void PerformDivision(List<ElementId> siblingIds, List<ElementId> hPlanes, List<ElementId> vaPlanes, List<ElementId> vbPlanes, ElementId sketchId, XYZ ySort)
         {
-            // 階段 A：水平切割
-            PartMaker pmH = _divisionService.Divide(siblingIds, hPlanes, sketchId);
-            if (pmH != null) _divisionService.SetGroutGap(pmH, _config.HGroutGapFeet);
-            _doc.Regenerate();
+            if (hPlanes.Count > 0)
+            {
+                PartMaker pmH = _divisionService.Divide(siblingIds, hPlanes, sketchId);
+                if (pmH != null) _divisionService.SetGroutGap(pmH, _config.HGroutGapFeet);
+                _doc.Regenerate();
+            }
 
-            // 抓取子零件
             var stripIds = new List<ElementId>();
             foreach (var pid in siblingIds) stripIds.AddRange(_divisionService.GetAssociatedParts(pid));
+            if (stripIds.Count == 0) return;
 
             if (_config.PatternType == TilePatternType.Grid)
             {
-                // 階段 B：垂直切割 (正排)
-                if (stripIds.Count > 0)
+                if (vaPlanes.Count > 0)
                 {
                     PartMaker pmV = _divisionService.Divide(stripIds, vaPlanes, sketchId);
                     if (pmV != null) _divisionService.SetGroutGap(pmV, _config.VGroutGapFeet);
@@ -181,7 +196,6 @@ namespace TilePlanner.Core
             }
             else
             {
-                // 階段 B：垂直切割 (交丁)
                 var sortedStrips = stripIds.Select(id => _doc.GetElement(id) as Part)
                     .Where(p => p != null && p.get_BoundingBox(null) != null)
                     .OrderBy(p => (p.get_BoundingBox(null).Min + p.get_BoundingBox(null).Max).DotProduct(ySort)).ToList();

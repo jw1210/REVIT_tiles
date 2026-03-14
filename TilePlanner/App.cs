@@ -70,6 +70,17 @@ namespace TilePlanner
                     "一鍵隱藏或顯示當前視圖中的「磁磚計畫刀網」，方便出圖或進行放樣微調。";
                 PushButton toggleGridBtn = panel.AddItem(toggleGridBtnData) as PushButton;
 
+                // ===== 開關零件顯示按鈕 (新增 V2.8) =====
+                PushButtonData togglePartsBtnData = new PushButtonData(
+                    "TogglePartsVisibility",
+                    "顯示/隱藏\n零件",
+                    assemblyPath,
+                    "TilePlanner.Commands.TogglePartsVisibilityCommand");
+                togglePartsBtnData.ToolTip = "一鍵切換當前視圖的零件顯示狀態";
+                togglePartsBtnData.LongDescription =
+                    "在「僅顯示原主體 (Show Original)」與「僅顯示零件 (Show Parts)」之間快速切換，方便您隨時檢視原始牆體或磁磚分割結果。";
+                PushButton togglePartsBtn = panel.AddItem(togglePartsBtnData) as PushButton;
+
                 // 註冊已移除的 Dynamic Model Updater
                 // application.ControlledApplication.DocumentOpened += (sender, args) =>
                 // {

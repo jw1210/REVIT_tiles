@@ -15,27 +15,34 @@ namespace TilePlanner.Commands
             Document doc = uidoc.Document;
             View activeView = doc.ActiveView;
 
-            // 防呆：檢查當前視圖是否支援零件可見性設定 (例如某些明細表或圖紙不支援)
-            if (!activeView.CanEnableTemporaryViewPropertiesMode() && activeView.ViewType != ViewType.ThreeD && activeView.ViewType != ViewType.FloorPlan && activeView.ViewType != ViewType.Elevation && activeView.ViewType != ViewType.Section)
+            // [V3.1] 精準抓取底層參數，完美支援 3D 視角與各類平面圖
+            Parameter pv = activeView.get_Parameter(BuiltInParameter.VIEW_PARTS_VISIBILITY);
+            
+            if (pv == null)
             {
-                TaskDialog.Show("切換零件", "當前視圖不支援更改零件可見性。");
+                TaskDialog.Show("切換零件", "當前視圖類型 (如明細表) 不支援零件顯示設定。");
+                return Result.Failed;
+            }
+
+            if (pv.IsReadOnly)
+            {
+                TaskDialog.Show("切換零件", "當前視圖的零件顯示受到「視圖樣板 (View Template)」控制，請先解除樣板鎖定。");
                 return Result.Failed;
             }
 
             using (Transaction trans = new Transaction(doc, "切換零件/原主體顯示"))
             {
                 trans.Start();
-
                 try
                 {
-                    // 邏輯：如果目前是顯示原主體，就切換成顯示零件；否則切換回原主體
-                    if (activeView.PartsVisibility == PartsVisibility.ShowOriginalOnly)
+                    // 若目前是「僅顯示原主體」，則切換為「僅顯示零件」；反之亦然
+                    if (pv.AsInteger() == (int)PartsVisibility.ShowOriginalOnly)
                     {
-                        activeView.PartsVisibility = PartsVisibility.ShowPartsOnly;
+                        pv.Set((int)PartsVisibility.ShowPartsOnly);
                     }
                     else
                     {
-                        activeView.PartsVisibility = PartsVisibility.ShowOriginalOnly;
+                        pv.Set((int)PartsVisibility.ShowOriginalOnly);
                     }
 
                     trans.Commit();

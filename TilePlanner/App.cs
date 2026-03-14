@@ -1,90 +1,44 @@
 using System;
-using System.IO;
 using System.Reflection;
-using System.Windows.Media.Imaging;
 using Autodesk.Revit.UI;
-using TilePlanner.Core;
 
 namespace TilePlanner
 {
-    /// <summary>
-    /// Revit 外部應用程式 — 建立 Ribbon UI 與註冊 Updater
-    /// </summary>
     public class App : IExternalApplication
     {
         public Result OnStartup(UIControlledApplication application)
         {
             try
             {
-                // 建立 Ribbon 標籤
                 string tabName = "磁磚計畫";
                 application.CreateRibbonTab(tabName);
-
-                // 建立 Ribbon 面板
                 RibbonPanel panel = application.CreateRibbonPanel(tabName, "磁磚工具");
-
-                // 取得 Assembly 路徑
                 string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
-                // ===== 建立磁磚計畫按鈕 =====
-                PushButtonData createBtnData = new PushButtonData(
-                    "CreateTilePlan",
-                    "建立\n磁磚計畫",
-                    assemblyPath,
-                    "TilePlanner.Commands.CreateTilePlanCommand");
-                createBtnData.ToolTip = "在選取的帷幕牆上建立磁磚分割計畫";
-                createBtnData.LongDescription =
-                    "選取一面已建立的帷幕牆（無分割），設定磁磚尺寸、灰縫寬度、排列模式等參數，自動在帷幕牆上建立磁磚分割格線與竪框灰縫。";
-                PushButton createBtn = panel.AddItem(createBtnData) as PushButton;
+                // 建立與移除按鈕
+                PushButtonData createBtnData = new PushButtonData("CreateTilePlan", "建立\n磁磚計畫", assemblyPath, "TilePlanner.Commands.CreateTilePlanCommand");
+                panel.AddItem(createBtnData);
 
-                // ===== 移除磁磚計畫按鈕 =====
-                PushButtonData removeBtnData = new PushButtonData(
-                    "RemoveTilePlan",
-                    "移除\n磁磚計畫",
-                    assemblyPath,
-                    "TilePlanner.Commands.RemoveTilePlanCommand");
-                removeBtnData.ToolTip = "移除選取帷幕牆上的磁磚分割";
-                removeBtnData.LongDescription =
-                    "清除帷幕牆上的所有格線與竪框，還原為無分割狀態。";
-                PushButton removeBtn = panel.AddItem(removeBtnData) as PushButton;
+                PushButtonData removeBtnData = new PushButtonData("RemoveTilePlan", "移除\n磁磚計畫", assemblyPath, "TilePlanner.Commands.RemoveTilePlanCommand");
+                panel.AddItem(removeBtnData);
 
-                // ===== 格線整體連動按鈕 =====
-                PushButtonData toggleBtnData = new PushButtonData(
-                    "ToggleLinkedMove",
-                    "整體\n連動",
-                    assemblyPath,
-                    "TilePlanner.Commands.ToggleLinkedMoveCommand");
-                toggleBtnData.ToolTip = "切換格線整體連動功能";
-                toggleBtnData.LongDescription =
-                    "啟用後，移動一條分割格線時，同方向的所有格線將一起平移，保持磁磚排列間距。";
-                PushButton toggleBtn = panel.AddItem(toggleBtnData) as PushButton;
+                // 整體連動按鈕
+                PushButtonData toggleBtnData = new PushButtonData("ToggleLinkedMove", "整體\n連動", assemblyPath, "TilePlanner.Commands.ToggleLinkedMoveCommand");
+                panel.AddItem(toggleBtnData);
 
-                // ===== 開關網格顯示按鈕 (V2.3) =====
-                PushButtonData toggleGridBtnData = new PushButtonData(
-                    "ToggleGridCommand",
-                    "顯示/隱藏\n網格",
-                    assemblyPath,
-                    "TilePlanner.Commands.ToggleGridCommand");
-                toggleGridBtnData.ToolTip = "切換磁磚切割網格的顯示狀態";
-                toggleGridBtnData.LongDescription =
-                    "一鍵隱藏或顯示當前視圖中的「磁磚計畫刀網」，方便出圖或進行放樣微調。";
-                PushButton toggleGridBtn = panel.AddItem(toggleGridBtnData) as PushButton;
+                // ==========================================
+                // [V3.1] 獨立的大按鈕：顯示/隱藏 網格
+                // ==========================================
+                PushButtonData toggleGridBtnData = new PushButtonData("ToggleGridCommand", "顯示/隱藏\n網格", assemblyPath, "TilePlanner.Commands.ToggleGridCommand");
+                toggleGridBtnData.ToolTip = "一鍵隱藏或顯示磁磚切割輔助綠線";
+                panel.AddItem(toggleGridBtnData);
 
-                // ===== 開關零件顯示按鈕 (新增 V2.8) =====
-                PushButtonData togglePartsBtnData = new PushButtonData(
-                    "TogglePartsVisibility",
-                    "顯示/隱藏\n零件",
-                    assemblyPath,
-                    "TilePlanner.Commands.TogglePartsVisibilityCommand");
-                togglePartsBtnData.ToolTip = "一鍵切換當前視圖的零件顯示狀態";
-                togglePartsBtnData.LongDescription =
-                    "在「僅顯示原主體 (Show Original)」與「僅顯示零件 (Show Parts)」之間快速切換，方便您隨時檢視原始牆體或磁磚分割結果。";
-                PushButton togglePartsBtn = panel.AddItem(togglePartsBtnData) as PushButton;
-
-                // 註冊已移除的 Dynamic Model Updater
-                // application.ControlledApplication.DocumentOpened += (sender, args) =>
-                // {
-                // };
+                // ==========================================
+                // [V3.1] 獨立的大按鈕：顯示/隱藏 零件
+                // ==========================================
+                PushButtonData togglePartsBtnData = new PushButtonData("TogglePartsVisibility", "顯示/隱藏\n零件", assemblyPath, "TilePlanner.Commands.TogglePartsVisibilityCommand");
+                togglePartsBtnData.ToolTip = "快速切換原主體(Wall)與切割好的磁磚零件(Parts)";
+                panel.AddItem(togglePartsBtnData);
 
                 return Result.Succeeded;
             }

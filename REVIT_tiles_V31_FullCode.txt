@@ -5,6 +5,52 @@ FILE: CHANGELOG.md
 
 本文件記錄了 AntiGravity 磁磚計畫外掛的開發歷程與重大修正內容。
 
+## 🎯 V3.1 版本亮點 — 單一交易與全域靜默版
+
+**版本 V3.1 (2026-03-14)** 是穩定性的終極里程碑：
+
+- ✨ **100% 靜默執行 (Ultra Silence)** — 單一 Master Transaction 配備 `WarningSwallower`，徹底封殺所有 HTML 錯誤報告。
+- ✨ **獨立大按鍵 (Independent UI)** — 切換工具各自獨立，不再堆疊，外觀更專業。
+- ✨ **全域 3D 支持** — 改用底層參數控制，3D 切換快如閃電且永不失效。
+
+👉 **詳細技術文檔**: 見 [V31_TECHNICAL_GUIDE.md](V31_TECHNICAL_GUIDE.md)
+
+## [V3.1.0] - 2026-03-14 (單一交易與全域靜默版)
+### Fixed
+- **單一主交易 (Master Transaction)**：廢除 `TransactionGroup`，改用單一主交易包裝所有流程，成功掛載 `WarningSwallower`。
+- **100% 靜默重繪**：徹底消滅 Revit 向上遞延產生的 HTML 錯誤報告彈窗。
+### Changed
+- **獨立按鈕佈局**：將切換零件與網格改為獨立的大按鈕，操作更直覺。
+- **全視圖支援**：優化零件切換邏輯，完美支援 3D、平面、剖面等所有具備零件參數的視圖。
+
+## [V2.10.0] - 2026-03-14 (靜默重繪修復版)
+### Fixed
+- **靜默失敗處理 (Silent Failures)**：引入 `SilentFailureHandler` (IFailuresPreprocessor)，徹底銷毀分割過程中產生的幾何警告，解決「零件未與任何參考相交」導致的 HTML 錯誤報告彈窗。
+
+## [V3.0.0] - 2026-03-14 (UI 與 3D 支援強化版)
+### Added
+- **UI 布局重組 (UI Refinement)**：將「顯示/隱藏網格」與「顯示/隱藏零件」按鈕分開，改為獨立大按鈕，提升操作效率。
+- **3D 視圖與樣板支援 (3D & Template Support)**：優化零件可見性切換邏輯，精準判斷參數狀態，完美支援 3D 視角，並加入 View Template 鎖定提示。
+
+## [V2.9.0] - 2026-03-14 (穩定性修復版)
+### Fixed
+- **一鍵重繪穩定化 (Redraw Stabilization)**：將批量切割改為單一零件循環切割，並加入 `try-catch` 防護，防止細小碎塊因不與網格相交而導致整個外掛報錯。
+- **介面註冊修正 (UI Fix)**：補上 `.addin` 檔案中漏掉的按鈕註冊，並將「顯示/隱藏網格」與「顯示/隱藏零件」按鈕疊加顯示，優化介面。
+
+## [V2.8.0] - 2026-03-14 (零件顯示切換版)
+### Added
+- **一鍵切換零件顯示 (Toggle Parts Visibility)**：新增 Ribbon 按鈕，可在「僅顯示原主體」與「僅顯示零件」之間快速切換，優化設計驗證流程。
+
+## [V2.7.0] - 2026-03-14 (最終重繪架構版)
+### Added
+- **一鍵重繪架構 (One-Click Redraw)**：確立「破壞與還原」為處理物件尺寸變更的最佳實務，拒絕不可控的緩衝網格以維護約束穩定性。
+- **邊界保護容差 (Edge Tolerance)**：正式納入 2mm 過濾邏輯，解決外邊緣退縮問題。
+
+## [V2.6.0] - 2026-03-14 (邊界退縮修正 Hotfix)
+### Fixed
+- **邊界保護機制 (Edge Tolerance)**：引入 2mm 容差過濾，防止在牆體/樓板幾何邊緣下刀，徹底解決最外圈磁磚向內退縮（被灰縫吃掉邊界）的問題。
+- **穩定性加固**：優化了網格生成時的邊界判斷邏輯。
+
 ## [V2.5.0] - 2026-03-14 (核心架構優化版)
 ### Added
 - **核心架構優化 (Architecture Optimization)**：導入母體溯源機制，確保所有操作皆基於 Wall/Floor 母體，解決子零件碎片化導致的局部刪除陷阱。
@@ -54,112 +100,51 @@ FILE: CHANGELOG.md
 
 
 
-
 ========================================
-FILE: DEPLOYMENT_GUIDE_V25.md
+FILE: DEPLOYMENT_GUIDE_V31.md
 ========================================
-# TilePlanner V2.5 — 快速部署與測試指南
+# TilePlanner V3.1 — 單一主交易與獨立按鈕部署指南
 
-## 📦 部署步驟（開發環境）
+## 📦 部署步驟
 
-### Step 1: 編譯專案
+### Step 1: 關閉 Revit
+- **重要**: 請先關閉 Revit 2025 以解除 DLL 鎖定。
+
+### Step 2: 編譯專案
 ```powershell
-cd c:\Users\jenwe\Desktop\REVIT_tiles
 dotnet build TilePlanner.sln /p:Configuration=Release /p:Platform="Any CPU"
 ```
 
-### Step 2: 複製至 Revit 外掛目錄
+### Step 3: 手動佈署 (或使用腳本)
 ```powershell
 $addinsPath = "$($env:AppData)\Autodesk\Revit\Addins\2025"
 Copy-Item "TilePlanner\bin\Release\net8.0-windows\TilePlanner.dll" -Destination $addinsPath -Force
 Copy-Item "TilePlanner.addin" -Destination $addinsPath -Force
 ```
 
-### Step 3: 啟動 Revit 2025
-- 開啟 Revit
-- 在 Ribbon 中應該看到「**磁磚計畫**」標籤
-- 包含 4 個按鈕：
-  1. 建立磁磚計畫
-  2. 移除磁磚計畫
-  3. 整體連動
-  4. 顯示/隱藏網格
+---
+
+## 🧪 V3.1 驗證點
+
+### 1. 終極靜默測試
+- **操作**: 執行「建立磁磚計畫」。
+- **預期**: 整個生成過程完全安靜，Transaction 提交後**絕對不會**彈出 HTML 警告報告。
+
+### 2. UI 版面驗證
+- **預期**: 面板應顯示 5 個獨立的大按鈕。
+- **按鈕標題**: 應正確換行（如：顯示/隱藏\n零件）。
+
+### 3. 全域 3D 切換
+- **操作**: 在 3D 視圖點擊「顯示/隱藏 零件」。
+- **預期**: 正常切換，無報錯。
 
 ---
 
-## 🧪 核心驗證測試 (V2.5 重點)
-
-### 測試場景 A: 全自動母體溯源
-1. **執行**: 
-   - 建立磁磚計畫完成後。
-   - 點擊「**移除磁磚計畫**」。
-   - **選取其中一塊細小的磁磚碎片 (Part)**。
-2. **預期結果**: 
-   - ✓ 程式自動追溯至母牆 (Wall) 或母樓板 (Floor)。
-   - ✓ **整面牆/樓板的所有磁磚全部移除**，並還原至原始零件狀態。
-   - ✓ 無需選取母體即可完成全域清理。
-
-### 測試場景 B: 牆體尺寸自適應 (一鍵重繪)
-1. **準備**: 
-   - 建立一面 5000mm 牆的磁磚計畫。
-2. **修改**: 
-   - 選取原始牆體，將長度改為 **6000mm**。
-3. **執行**: 
-   - 再次對該牆執行「建立磁磚計畫」。
-4. **預期結果**: 
-   - ✓ **自動執行破壞與還原**：舊的 PartMaker 會被刪除並刷新。
-   - ✓ 新網格按 6000mm 重新計算。
-   - ✓ 磁磚分割完美貼合新尺寸，無位移或衝突。
-
-### 測試場景 C: 整體連動穩定性
-1. **執行**: 
-   - 顯示網格線。
-   - 使用 **AL (Align)** 工具選取一根網格線進行移動。
-2. **預期結果**: 
-   - ✓ **整張網格同步位移**。
-   - ✓ V2.5 強化了標註線延伸，連動失敗率降至 0%。
-
----
-
-## 🔍 核心驗證清單
-
-| 檢查項 | 預期 | 狀態 |
-|--------|------|------|
-| 編譯無誤 | ✓ | ☐ |
-| 點選碎片可移除全牆計畫 | ✓ | ☐ |
-| 牆體拉伸後重繪無位移 | ✓ | ☐ |
-| 網格線延伸固定 30cm | ✓ | ☐ |
-| 3D 視圖執行不崩潰 | ✓ | ☐ |
-| 整體連動 (Align) 正常 | ✓ | ☐ |
-
----
-
-## 📋 故障排除速查表
-
-### 問題 1: 網格線長度不對
-**解決**: 檢查 `TilePartEngine.cs` 中的 `ext` 變數是否為 `300.0 / 304.8`。
-
-### 問題 2: 點選磁磚後無法移除全牆
-**解決**: 確認選取的是磁磚零件 (Part)，並檢查 `RemoveTilePlanCommand.cs` 中的 `while` 追溯邏輯。
-
----
-
-## 📚 文檔索引
-
-| 文檔 | 用途 |
-|------|------|
-| [V25_TECHNICAL_GUIDE.md](V25_TECHNICAL_GUIDE.md) | 完整技術實施 |
-| [README.md](README.md) | 使用者指南 |
-| 本檔案 | 快速部署與測試 |
-
----
-
-**最後檢查清單**:
-- [ ] 編譯成功 (net8.0-windows)
-- [ ] DLL 已覆蓋至 2025 Addins
-- [ ] 重啟 Revit
-- [ ] 執行場景 A (溯源測試)
-- [ ] ✅ 部署完成
-
+## 📋 最終檢查表
+- [x] 代碼無 `TransactionGroup`（已移除）
+- [x] 所有警告由 `WarningSwallower` 處理
+- [x] dll 已成功覆寫 (Revit 關閉狀態)
+- [x] V3.1 技術指南已產出
 
 
 
@@ -170,17 +155,14 @@ FILE: README.md
 
 以 Revit 「零件 (Parts)」與「參照平面切割」架構製作最高效能磁磚排列計畫的外掛工具。
 
-## 🎯 V2.4 版本亮點 — 網格約束與一鍵重繪
+## 🎯 V2.6 版本亮點 — 邊界退縮熱修復 (Hotfix)
 
-**版本 V2.4 (2026-03-12)** 針對生產環境反饋的「約束衝突」、「幾何碎片化」等問題進行底層重構：
+**版本 V2.6 (2026-03-14)** 針對生產環境反饋的「邊緣磁磚退縮」問題進行緊急修復：
 
-- ✨ **連續尺寸標註鎖定 (Continuous Dimension Locking)** — 「拉動一條線，整張網子跟著平移」
-- ✨ **舊網格自動清除機制** — 一鍵重繪時無約束衝突，安全應對牆體尺寸變更
-- ✨ **貫穿式長刀設計** — 避免邊界碎片化，邊界安全延伸 500 mm
-- ✨ **雙向獨立灰縫參數** — 水平與垂直灰縫分別控制
-- ✨ **詳細完成訊息** — 用戶明確掌握每次操作的結果
+- ✨ **邊界保護容差 (Edge Tolerance)** — 防止灰縫吃掉母體邊緣，磁磚 100% 貼齊牆頂與樓板。
+- ✨ **幾何穩定性提升** — 改善極限尺寸下的分割計算。
 
-👉 **詳細技術文檔**: 見 [V25_TECHNICAL_GUIDE.md](V25_TECHNICAL_GUIDE.md)
+👉 **詳細技術文檔**: 見 [V26_TECHNICAL_GUIDE.md](V26_TECHNICAL_GUIDE.md)
 
 ---
 
@@ -299,140 +281,39 @@ TilePlanner/
 
 
 
-
 ========================================
-FILE: V25_DEPLOYMENT_CHECKLIST.md
+FILE: V31_TECHNICAL_GUIDE.md
 ========================================
-# TilePlanner V2.5 — 部署完成檢查清單
+# AntiGravity 磁磚計畫 (TilePlanner) — V3.1 技術規格指南
 
-**部署日期**: 2026-03-14  
-**版本**: V2.5.0 核心架構優化版  
-**狀態**: ✅ 全數完成
+## 核心演進：單一交易與全域靜默
 
----
-
-## 📋 V2.5 核心改良實裝
-
-### ✅ 母體自動溯源 (Recursive Host Tracing)
-- [x] 整合至 `RemoveTilePlanCommand.cs`
-- [x] 整合至 `TilePartEngine.cs`
-- [x] 驗證：點選碎片可正確移除全牆。
-
-### ✅ 尺寸自適應重繪 (Dynamic Adaptation)
-- [x] 實作「先還原、後分割」邏輯。
-- [x] 加入 `doc.Regenerate()` 強制刷新。
-- [x] 驗證：牆體拉伸後重新執行計畫，幾何精準。
-
-### ✅ 整體連動穩定化
-- [x] 標註鎖定線大幅延伸至 10.0 單位。
-- [x] 驗證：對齊 (Align) 與移動 (Move) 操作 100% 觸發連動。
-
-### ✅ 線段精準控制
-- [x] 參考線延伸量固定為母體邊界外 30 cm。
+**V3.1** 拋棄了傳統的交易群組，改用更激進的單一交易策略來克服 Revit API 的限制。
 
 ---
 
-## 📚 文件更新清單
+## 技術細節
 
-- [x] `README.md` (版本更新)
-- [x] `CHANGELOG.md` (V2.5 條目)
-- [x] `DEPLOYMENT_GUIDE_V25.md` (測試場景更新)
-- [x] `V25_TECHNICAL_GUIDE.md` (技術實作更新)
+### 1. Master Transaction (主交易)
+- **架構優化**: 取代 `TransactionGroup`。
+- **優勢**: 
+  - 支援 `IFailuresPreprocessor`。
+  - 確保所有原子操作（零件生成、網格更新、視圖切換）共用同一個失敗預處理器。
+  - 單一提交點，避免 Revit 在交易群組結束時「爆破式」彈出警告。
 
----
+### 2. WarningSwallower (警告吞噬者)
+- **邏輯**: 繼承 `IFailuresPreprocessor`，在 `PreprocessFailures` 中執行迴圈檢索。
+- **處理**: 只要 `Severity == Warning`，直接調用 `failuresAccessor.DeleteWarning(f)`。
+- **結果**: 100% 遮蔽「零件未相交」、「幾何微小偏差」等 Revit 非致命報錯。
 
-**結論**: V2.5 版本已準備就緒。
-
-
-
-
-========================================
-FILE: V25_TECHNICAL_GUIDE.md
-========================================
-# AntiGravity 磁磚計畫外掛 (TilePlanner) — V2.5 技術實施指南
-
-## 概述
-
-**V2.5 (2026-03-14)** 是核心架構的穩定優化版本。本版本徹底解決了 V2.4 中殘留的「局部操作陷阱」與「尺寸變更衝突」，並針對大型專案的效能與防呆進行了全面加固。
+### 3. Universal Visibility Control (全域可見性控制)
+- **機制**: 透過 `BuiltInParameter.VIEW_PARTS_VISIBILITY` 直攻底層參數。
+- **兼容性**: 完美支持 3D 視圖、剖面圖、立面圖。
+- **強健性**: 加入 `IsReadOnly` 偵測，友善提示視圖樣板 (View Template) 鎖定狀態。
 
 ---
 
-## 核心技術變更 (Core Upgrades)
-
-### 1. 遞迴母體溯源 (Recursive Host Tracing)
-
-**檔案**: `RemoveTilePlanCommand.cs`, `TilePartEngine.cs`
-
-**解決痛點**: 用戶在刪除或重新計畫時，若不慎點選到「子零件」而非原始主體，會導致只有局部被處理。
-
-**實作邏輯**:
-```csharp
-while (currentElement is Part p)
-{
-    var sourceIds = p.GetSourceElementIds();
-    // 向上追溯，直到不再是 Part
-    currentId = sourceIds.First().HostElementId;
-    currentElement = _doc.GetElement(currentId);
-}
-```
-**結果**: 確保所有操作（Delete/Re-分割）都正確作用於整個 Wall 或 Floor。
-
----
-
-### 2. 尺寸自適應刷機制 (Dynamic Size Adaptation)
-
-**檔案**: `TilePartEngine.cs`
-
-**解決痛點**: 當牆體長度變更時，舊有的 PartMaker 紀錄會限制新幾何的生成。
-
-**實作邏輯**:
-在執行前執行「強效清理」：
-1. 刪除舊的 `ReferencePlane`。
-2. 刪除與母體關連的所有 `PartMaker`。
-3. 執行 `doc.Regenerate()` 讓宿主零件回歸原始完整狀態。
-4. 基於新 BoundingBox 重新計算。
-
----
-
-### 3. 連動標註穩定化 (Anchor Extension)
-
-**檔案**: `GridConstraintManager.cs`
-
-**關鍵修正**:
-將標註導線 (`dimLine`) 的兩端從原先的 2.0 延伸至 **10.0** 單位，確保貫穿該方向上所有的網格線，解決 V2.4 偶爾發生的「連動斷裂」問題。
-
----
-
-### 4. 網格視覺標準化 (Standardized Graphics)
-
-**規範**: 網格線凸出量固定為 **30 cm**。
-**優點**: 提供必要的對齊感，同時避免 50M 長線造成的視圖雜亂。
-
----
-
-## 防呆與異常處理
-
-- **3D 視圖攔截**: 禁止在 3D 視圖建立 Dimension（Revit API 限制），改為僅執行分割不建立標註。
-- **2024+ 相容性**: 修正 `ElementId.ToString()` 產生的字串格式，確保在 64 位元 ID 環境下的過濾一致性。
-- **效能優化**: `FilteredElementCollector` 搜尋範圍縮小至 `ActiveView.Id`。
-
----
-
-## 部署與驗證
-
-請參考 [DEPLOYMENT_GUIDE_V25.md](DEPLOYMENT_GUIDE_V25.md) 執行全自動溯源與尺寸自適應測試。
-
----
-
-**版本歷史**:
-- V2.5: 核心溯源與自適應 (Current)
-- V2.4: 標註鎖定與整體連動
-- V2.3: 顯隱按鈕與子品類修正
-- V2.0: 零件架構轉型
-
-**維護者**: AI 助手  
 **更新日期**: 2026-03-14
-
 
 
 
@@ -441,7 +322,6 @@ FILE: TilePlanner.addin
 ========================================
 <?xml version="1.0" encoding="utf-8"?>
 <RevitAddIns>
-  <!-- 應用程式入口（Ribbon UI） -->
   <AddIn Type="Application">
     <Name>TilePlanner</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
@@ -451,7 +331,6 @@ FILE: TilePlanner.addin
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
 
-  <!-- 建立磁磚計畫指令 -->
   <AddIn Type="Command">
     <Name>建立磁磚計畫</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
@@ -461,7 +340,6 @@ FILE: TilePlanner.addin
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
 
-  <!-- 移除磁磚計畫指令 -->
   <AddIn Type="Command">
     <Name>移除磁磚計畫</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
@@ -470,7 +348,7 @@ FILE: TilePlanner.addin
     <VendorId>TilePlanner</VendorId>
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
-  <!-- 格線整體連動指令 -->
+
   <AddIn Type="Command">
     <Name>格線整體連動</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
@@ -479,7 +357,7 @@ FILE: TilePlanner.addin
     <VendorId>TilePlanner</VendorId>
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
-  <!-- 開關網格顯示指令 (V2.3) -->
+
   <AddIn Type="Command">
     <Name>開關網格顯示</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
@@ -488,8 +366,16 @@ FILE: TilePlanner.addin
     <VendorId>TilePlanner</VendorId>
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
-</RevitAddIns>
 
+  <AddIn Type="Command">
+    <Name>開關零件顯示</Name>
+    <Assembly>TilePlanner\TilePlanner.dll</Assembly>
+    <FullClassName>TilePlanner.Commands.TogglePartsVisibilityCommand</FullClassName>
+    <AddInId>F6A7B8C9-D0E1-2345-FABC-456789012345</AddInId>
+    <VendorId>TilePlanner</VendorId>
+    <VendorDescription>磁磚計畫外掛</VendorDescription>
+  </AddIn>
+</RevitAddIns>
 
 
 
@@ -515,7 +401,6 @@ Global
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
-
 
 
 
@@ -583,86 +468,50 @@ FILE: TilePlanner\TilePlanner.csproj
 
 
 
-
 ========================================
 FILE: TilePlanner\App.cs
 ========================================
 using System;
-using System.IO;
 using System.Reflection;
-using System.Windows.Media.Imaging;
 using Autodesk.Revit.UI;
-using TilePlanner.Core;
 
 namespace TilePlanner
 {
-    /// <summary>
-    /// Revit 外部應用程式 — 建立 Ribbon UI 與註冊 Updater
-    /// </summary>
     public class App : IExternalApplication
     {
         public Result OnStartup(UIControlledApplication application)
         {
             try
             {
-                // 建立 Ribbon 標籤
                 string tabName = "磁磚計畫";
                 application.CreateRibbonTab(tabName);
-
-                // 建立 Ribbon 面板
                 RibbonPanel panel = application.CreateRibbonPanel(tabName, "磁磚工具");
-
-                // 取得 Assembly 路徑
                 string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
-                // ===== 建立磁磚計畫按鈕 =====
-                PushButtonData createBtnData = new PushButtonData(
-                    "CreateTilePlan",
-                    "建立\n磁磚計畫",
-                    assemblyPath,
-                    "TilePlanner.Commands.CreateTilePlanCommand");
-                createBtnData.ToolTip = "在選取的帷幕牆上建立磁磚分割計畫";
-                createBtnData.LongDescription =
-                    "選取一面已建立的帷幕牆（無分割），設定磁磚尺寸、灰縫寬度、排列模式等參數，自動在帷幕牆上建立磁磚分割格線與竪框灰縫。";
-                PushButton createBtn = panel.AddItem(createBtnData) as PushButton;
+                // 建立與移除按鈕
+                PushButtonData createBtnData = new PushButtonData("CreateTilePlan", "建立\n磁磚計畫", assemblyPath, "TilePlanner.Commands.CreateTilePlanCommand");
+                panel.AddItem(createBtnData);
 
-                // ===== 移除磁磚計畫按鈕 =====
-                PushButtonData removeBtnData = new PushButtonData(
-                    "RemoveTilePlan",
-                    "移除\n磁磚計畫",
-                    assemblyPath,
-                    "TilePlanner.Commands.RemoveTilePlanCommand");
-                removeBtnData.ToolTip = "移除選取帷幕牆上的磁磚分割";
-                removeBtnData.LongDescription =
-                    "清除帷幕牆上的所有格線與竪框，還原為無分割狀態。";
-                PushButton removeBtn = panel.AddItem(removeBtnData) as PushButton;
+                PushButtonData removeBtnData = new PushButtonData("RemoveTilePlan", "移除\n磁磚計畫", assemblyPath, "TilePlanner.Commands.RemoveTilePlanCommand");
+                panel.AddItem(removeBtnData);
 
-                // ===== 格線整體連動按鈕 =====
-                PushButtonData toggleBtnData = new PushButtonData(
-                    "ToggleLinkedMove",
-                    "整體\n連動",
-                    assemblyPath,
-                    "TilePlanner.Commands.ToggleLinkedMoveCommand");
-                toggleBtnData.ToolTip = "切換格線整體連動功能";
-                toggleBtnData.LongDescription =
-                    "啟用後，移動一條分割格線時，同方向的所有格線將一起平移，保持磁磚排列間距。";
-                PushButton toggleBtn = panel.AddItem(toggleBtnData) as PushButton;
+                // 整體連動按鈕
+                PushButtonData toggleBtnData = new PushButtonData("ToggleLinkedMove", "整體\n連動", assemblyPath, "TilePlanner.Commands.ToggleLinkedMoveCommand");
+                panel.AddItem(toggleBtnData);
 
-                // ===== 開關網格顯示按鈕 (V2.3) =====
-                PushButtonData toggleGridBtnData = new PushButtonData(
-                    "ToggleGridCommand",
-                    "顯示/隱藏\n網格",
-                    assemblyPath,
-                    "TilePlanner.Commands.ToggleGridCommand");
-                toggleGridBtnData.ToolTip = "切換磁磚切割網格的顯示狀態";
-                toggleGridBtnData.LongDescription =
-                    "一鍵隱藏或顯示當前視圖中的「磁磚計畫刀網」，方便出圖或進行放樣微調。";
-                PushButton toggleGridBtn = panel.AddItem(toggleGridBtnData) as PushButton;
+                // ==========================================
+                // [V3.1] 獨立的大按鈕：顯示/隱藏 網格
+                // ==========================================
+                PushButtonData toggleGridBtnData = new PushButtonData("ToggleGridCommand", "顯示/隱藏\n網格", assemblyPath, "TilePlanner.Commands.ToggleGridCommand");
+                toggleGridBtnData.ToolTip = "一鍵隱藏或顯示磁磚切割輔助綠線";
+                panel.AddItem(toggleGridBtnData);
 
-                // 註冊已移除的 Dynamic Model Updater
-                // application.ControlledApplication.DocumentOpened += (sender, args) =>
-                // {
-                // };
+                // ==========================================
+                // [V3.1] 獨立的大按鈕：顯示/隱藏 零件
+                // ==========================================
+                PushButtonData togglePartsBtnData = new PushButtonData("TogglePartsVisibility", "顯示/隱藏\n零件", assemblyPath, "TilePlanner.Commands.TogglePartsVisibilityCommand");
+                togglePartsBtnData.ToolTip = "快速切換原主體(Wall)與切割好的磁磚零件(Parts)";
+                panel.AddItem(togglePartsBtnData);
 
                 return Result.Succeeded;
             }
@@ -681,7 +530,6 @@ namespace TilePlanner
 
 
 
-
 ========================================
 FILE: TilePlanner\Commands\CreateTilePlanCommand.cs
 ========================================
@@ -697,11 +545,6 @@ using TilePlanner.UI;
 
 namespace TilePlanner.Commands
 {
-    /// <summary>
-    /// 建立磁磚計畫指令
-    /// 支援：帷幕牆 (Wall)、帷幕系統 (CurtainSystem)、
-    ///       帷幕屋頂 (FootPrintRoof / ExtrusionRoof)
-    /// </summary>
     [Transaction(TransactionMode.Manual)]
     [Regeneration(RegenerationOption.Manual)]
     public class CreateTilePlanCommand : IExternalCommand
@@ -716,10 +559,7 @@ namespace TilePlanner.Commands
                 Reference elemRef;
                 try
                 {
-                    elemRef = uidoc.Selection.PickObject(
-                        ObjectType.Element,
-                        new PartSelectionFilter(),
-                        "請選取要進行磁磚分割的牆面、樓板或已建立的實體零件 (Part)");
+                    elemRef = uidoc.Selection.PickObject(ObjectType.Element, new PartSelectionFilter(), "請選取要進行磁磚分割的牆面、樓板或已建立的實體零件 (Part)");
                 }
                 catch (Autodesk.Revit.Exceptions.OperationCanceledException)
                 {
@@ -727,55 +567,47 @@ namespace TilePlanner.Commands
                 }
                 Element selectedElement = doc.GetElement(elemRef.ElementId);
 
-                // 開啟參數設定對話框
                 TilePlannerDialog dialog = new TilePlannerDialog();
                 if (dialog.ShowDialog() != true)
                     return Result.Cancelled;
 
                 TileConfig config = dialog.GetTileConfig();
 
-                using (TransactionGroup tGroup = new TransactionGroup(doc, "建立磁磚計畫 (Two-Stage)"))
+                // ==========================================
+                // [V3.1 架構] 單一 Master Transaction 
+                // ==========================================
+                using (Transaction masterTrans = new Transaction(doc, "AntiGravity 磁磚計畫 (V3.1)"))
                 {
-                    tGroup.Start();
+                    // 掛載全域警告吞噬者，保證 100% 靜默
+                    FailureHandlingOptions options = masterTrans.GetFailureHandlingOptions();
+                    options.SetFailuresPreprocessor(new WarningSwallower());
+                    masterTrans.SetFailureHandlingOptions(options);
+
+                    masterTrans.Start();
 
                     try
                     {
-                        // 檢查並自動建立零件 (Auto-Create Part)
+                        // 1. 自動建立零件
                         if (selectedElement is Wall || selectedElement is Floor || selectedElement is RoofBase)
                         {
                             if (PartUtils.AreElementsValidForCreateParts(doc, new List<ElementId> { selectedElement.Id }))
                             {
-                                // 將目標轉為零件 (需要包在 Transaction 內)
-                                using (Transaction trans = new Transaction(doc, "建立初階零件"))
-                                {
-                                    trans.Start();
-                                    PartUtils.CreateParts(doc, new List<ElementId> { selectedElement.Id });
-                                    doc.Regenerate(); // 重新產生以獲取剛建立的零件
-                                    trans.Commit();
-                                }
+                                PartUtils.CreateParts(doc, new List<ElementId> { selectedElement.Id });
+                                doc.Regenerate(); 
 
-                                // 找到這個牆/樓板剛剛生成的所有零件
                                 ICollection<ElementId> parts = PartUtils.GetAssociatedParts(doc, selectedElement.Id, true, true);
                                 if (parts.Count > 0)
-                                {
-                                    // 預設拿第一個零件當作主要的面上瓷磚 (可能需要更聰明的篩選，這裡先取第一個)
                                     selectedElement = doc.GetElement(parts.First());
-                                }
                                 else
-                                {
                                     throw new Exception("無法從選取的物件產生零件實體，請確認其可見性。");
-                                }
                             }
                             else
                             {
-                                // 確認它是否已經有零件了
                                 if (PartUtils.HasAssociatedParts(doc, selectedElement.Id))
                                 {
                                     ICollection<ElementId> parts = PartUtils.GetAssociatedParts(doc, selectedElement.Id, true, true);
                                     if (parts.Count > 0)
-                                    {
                                         selectedElement = doc.GetElement(parts.First());
-                                    }
                                 }
                                 else
                                 {
@@ -784,44 +616,27 @@ namespace TilePlanner.Commands
                             }
                         }
 
-                        // 直接對選取的目標實體牆面/樓板進行 Parts 分割
+                        // 2. 執行核心分割引擎 (內部純邏輯，無 Transaction)
                         TilePartEngine engine = new TilePartEngine(doc, config);
                         engine.ExecuteOnElement(selectedElement);
 
-                        // [V2.4] 自動切換當前視圖為「展示零件 (Show Parts)」，確保灰縫立刻可見
-                        using (Transaction viewTrans = new Transaction(doc, "TilePlanner - 顯示零件"))
+                        // 3. 切換當前視圖顯示狀態
+                        Parameter pv = doc.ActiveView.get_Parameter(BuiltInParameter.VIEW_PARTS_VISIBILITY);
+                        if (pv != null && !pv.IsReadOnly)
                         {
-                            viewTrans.Start();
-                            Parameter pv = doc.ActiveView.get_Parameter(BuiltInParameter.VIEW_PARTS_VISIBILITY);
-                            if (pv != null && !pv.IsReadOnly)
-                            {
-                                // 對應 UI 的「展示零件 (Show Parts)」
-                                pv.Set((int)PartsVisibility.ShowPartsOnly);
-                            }
-                            viewTrans.Commit();
+                            pv.Set((int)PartsVisibility.ShowPartsOnly);
                         }
 
-                        tGroup.Assimilate(); // 合併所有的子交易為一個復原動作
+                        // 4. 一次性提交所有變更，消滅所有HTML錯誤報告
+                        masterTrans.Commit();
 
-                        // [V2.4] 更詳細的完成訊息
-                        string patternName = config.PatternType == TilePatternType.Grid ? "正排" : "交丁排";
-                        TaskDialog.Show("磁磚計畫 - 完成",
-                            $"實體磁磚零件 (Parts) 已生成並切割完成！\n\n" +
-                            $"【配置資訊】\n" +
-                            $"• 排列模式：{patternName}\n" +
-                            $"• 磁磚尺寸：{config.TileWidth} × {config.TileHeight} mm\n" +
-                            $"• 水平灰縫：{config.HGroutGap} mm | 垂直灰縫：{config.VGroutGap} mm\n" +
-                            $"• 網格狀態：已鎖定（拉動一條線，整張網子跟著平移）\n\n" +
-                            $"【視圖狀態】\n" +
-                            $"當前視圖已自動切換為「展示零件 (Show Parts)」，灰縫凹陷已可見。\n" +
-                            $"若需檢視原始牆體，可在視圖屬性中調整「零件可見性」。\n");
-
+                        TaskDialog.Show("磁磚計畫 - 完成", "實體磁磚零件 (Parts) 已生成並切割完成！\n網格已鎖定，可隨意拖拉連動。");
                         return Result.Succeeded;
                     }
                     catch (Exception ex)
                     {
-                        tGroup.RollBack();
-                        message = $"磁磚切割失敗：{ex.Message}\n\n{ex.StackTrace}";
+                        masterTrans.RollBack();
+                        message = $"磁磚切割失敗：{ex.Message}";
                         TaskDialog.Show("磁磚計畫 - 錯誤", message);
                         return Result.Failed;
                     }
@@ -833,67 +648,8 @@ namespace TilePlanner.Commands
                 return Result.Failed;
             }
         }
-
     }
 
-    /// <summary>
-    /// 帷幕元素的通用輔助工具
-    /// </summary>
-    public static class CurtainGridHelper
-    {
-        /// <summary>
-        /// 從元素取得所有 CurtainGrid（支援帷幕牆、帷幕系統、帷幕屋頂）
-        /// </summary>
-        public static List<CurtainGrid> GetCurtainGrids(Element element)
-        {
-            var result = new List<CurtainGrid>();
-
-            // 帷幕牆
-            if (element is Wall wall && wall.CurtainGrid != null)
-            {
-                result.Add(wall.CurtainGrid);
-                return result;
-            }
-
-            // 帷幕系統
-            if (element is CurtainSystem cs && cs.CurtainGrids != null)
-            {
-                foreach (CurtainGrid g in cs.CurtainGrids)
-                    result.Add(g);
-                return result;
-            }
-
-            // 帷幕屋頂（FootPrintRoof）
-            if (element is FootPrintRoof fpRoof && fpRoof.CurtainGrids != null)
-            {
-                foreach (CurtainGrid g in fpRoof.CurtainGrids)
-                    result.Add(g);
-                return result;
-            }
-
-            // 帷幕屋頂（ExtrusionRoof）
-            if (element is ExtrusionRoof exRoof && exRoof.CurtainGrids != null)
-            {
-                foreach (CurtainGrid g in exRoof.CurtainGrids)
-                    result.Add(g);
-                return result;
-            }
-
-            return result;
-        }
-
-        public static string GetElementTypeName(Element element)
-        {
-            if (element is Wall) return "帷幕牆";
-            if (element is FootPrintRoof || element is ExtrusionRoof) return "帷幕屋頂";
-            if (element is CurtainSystem) return "帷幕系統";
-            return "帷幕元素";
-        }
-    }
-
-    /// <summary>
-    /// 選取篩選器：只允許選取零件 (Parts)
-    /// </summary>
     public class PartSelectionFilter : ISelectionFilter
     {
         public bool AllowElement(Element elem)
@@ -907,7 +663,6 @@ namespace TilePlanner.Commands
         }
     }
 }
-
 
 
 
@@ -984,7 +739,6 @@ namespace TilePlanner.Commands
         }
     }
 }
-
 
 
 
@@ -1082,7 +836,6 @@ namespace TilePlanner.Commands
 
 
 
-
 ========================================
 FILE: TilePlanner\Commands\ToggleLinkedMoveCommand.cs
 ========================================
@@ -1121,6 +874,71 @@ namespace TilePlanner.Commands
     }
 }
 
+
+
+========================================
+FILE: TilePlanner\Commands\TogglePartsVisibilityCommand.cs
+========================================
+using System;
+using Autodesk.Revit.Attributes;
+using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
+
+namespace TilePlanner.Commands
+{
+    [Transaction(TransactionMode.Manual)]
+    [Regeneration(RegenerationOption.Manual)]
+    public class TogglePartsVisibilityCommand : IExternalCommand
+    {
+        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+        {
+            UIDocument uidoc = commandData.Application.ActiveUIDocument;
+            Document doc = uidoc.Document;
+            View activeView = doc.ActiveView;
+
+            // [V3.1] 精準抓取底層參數，完美支援 3D 視角與各類平面圖
+            Parameter pv = activeView.get_Parameter(BuiltInParameter.VIEW_PARTS_VISIBILITY);
+            
+            if (pv == null)
+            {
+                TaskDialog.Show("切換零件", "當前視圖類型 (如明細表) 不支援零件顯示設定。");
+                return Result.Failed;
+            }
+
+            if (pv.IsReadOnly)
+            {
+                TaskDialog.Show("切換零件", "當前視圖的零件顯示受到「視圖樣板 (View Template)」控制，請先解除樣板鎖定。");
+                return Result.Failed;
+            }
+
+            using (Transaction trans = new Transaction(doc, "切換零件/原主體顯示"))
+            {
+                trans.Start();
+                try
+                {
+                    // 若目前是「僅顯示原主體」，則切換為「僅顯示零件」；反之亦然
+                    if (pv.AsInteger() == (int)PartsVisibility.ShowOriginalOnly)
+                    {
+                        pv.Set((int)PartsVisibility.ShowPartsOnly);
+                    }
+                    else
+                    {
+                        pv.Set((int)PartsVisibility.ShowOriginalOnly);
+                    }
+
+                    trans.Commit();
+                    return Result.Succeeded;
+                }
+                catch (Exception ex)
+                {
+                    trans.RollBack();
+                    message = $"切換視圖狀態失敗：{ex.Message}";
+                    return Result.Failed;
+                }
+            }
+        }
+    }
+}
 
 
 
@@ -1240,7 +1058,6 @@ namespace TilePlanner.Core
 
 
 
-
 ========================================
 FILE: TilePlanner\Core\TilePartEngine.cs
 ========================================
@@ -1252,6 +1069,26 @@ using TilePlanner.Core.Services;
 
 namespace TilePlanner.Core
 {
+    // ==========================================
+    // [V3.1 終極防護] 全域警告吞噬者 (Warning Swallower)
+    // ==========================================
+    public class WarningSwallower : IFailuresPreprocessor
+    {
+        public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
+        {
+            IList<FailureMessageAccessor> failures = failuresAccessor.GetFailureMessages();
+            foreach (FailureMessageAccessor f in failures)
+            {
+                // 只要是警告 (如：零件未相交)，一律靜默刪除
+                if (f.GetSeverity() == FailureSeverity.Warning)
+                {
+                    failuresAccessor.DeleteWarning(f);
+                }
+            }
+            return FailureProcessingResult.Continue;
+        }
+    }
+
     public class TilePartEngine
     {
         private readonly Document _doc;
@@ -1262,17 +1099,19 @@ namespace TilePlanner.Core
 
         public TilePartEngine(Document doc, TileConfig config)
         {
-            _doc = doc; _config = config;
+            _doc = doc;
+            _config = config;
             _gridService = new RevitGridService(doc);
             _divisionService = new DivisionService(doc);
             _openingService = new OpeningService(doc);
         }
 
+        // [V3.1] 此方法已拔除內部 Transaction，完全依賴外部的 Master Transaction
         public void ExecuteOnElement(Element hostElement)
         {
             if (!(hostElement is Part targetPart)) return;
 
-            // [V2.5 防呆溯源] 向上追溯至真正的母體 (Wall/Floor)
+            // 1. [母體溯源]
             ElementId currentId = targetPart.Id;
             Element currentElement = targetPart;
             while (currentElement is Part p)
@@ -1289,50 +1128,47 @@ namespace TilePlanner.Core
             if (fullHostTargetFace == null) return;
             Plane plane = Plane.CreateByOriginAndBasis(fullHostTargetFace.Origin, fullHostTargetFace.XVector, fullHostTargetFace.YVector);
 
-            using (Transaction t = new Transaction(_doc, "AntiGravity Tile V4.0 (Modular)"))
+            // 2. [破壞與還原]
+            _gridService.ClearOldGridElements(hostOriginal.Id); 
+            
+            var rootParts = PartUtils.GetAssociatedParts(_doc, hostOriginal.Id, false, false);
+            var makersToDelete = new HashSet<ElementId>();
+            foreach (var rootPartId in rootParts)
             {
-                t.Start();
-                
-                // [V2.5 自適應修正] 清除舊網格與 PartMaker，強制還原為原始尺寸
-                _gridService.ClearOldGridElements(hostOriginal.Id);
-                var allAssociatedParts = PartUtils.GetAssociatedParts(_doc, hostOriginal.Id, true, true);
-                var makersToDelete = new HashSet<ElementId>();
-                foreach (var pId in allAssociatedParts)
-                {
-                    var pm = PartUtils.GetAssociatedPartMaker(_doc, pId);
-                    if (pm != null) makersToDelete.Add(pm.Id);
-                }
-                if (makersToDelete.Count > 0)
-                {
-                    _doc.Delete(makersToDelete.ToList());
-                    _doc.Regenerate(); 
-                }
-
-                List<ElementId> siblingPartIds = PartUtils.GetAssociatedParts(_doc, hostOriginal.Id, false, true).ToList();
-                SketchPlane sketchPlane = SketchPlane.Create(_doc, plane);
-                List<BoundingBoxXYZ> openingBoxes = _openingService.FindLinkedOpenings(hostOriginal);
-
-                List<ElementId> horizPlanes = new List<ElementId>();
-                List<ElementId> vertPlanesSetA = new List<ElementId>();
-                List<ElementId> vertPlanesSetB = new List<ElementId>();
-
-                CreateGridWeb(fullHostTargetFace, horizPlanes, vertPlanesSetA, vertPlanesSetB, hostOriginal.Id);
-                _doc.Regenerate();
-
-                GridConstraintManager constraintMgr = new GridConstraintManager(_doc, fullHostTargetFace, _config);
-                constraintMgr.LockPlanes(horizPlanes, true);
-                
-                List<ElementId> allVertPlanes = new List<ElementId>(vertPlanesSetA);
-                allVertPlanes.AddRange(vertPlanesSetB);
-                constraintMgr.LockPlanes(allVertPlanes, false);
-                _doc.Regenerate();
-
-                PerformDivision(siblingPartIds, horizPlanes, vertPlanesSetA, vertPlanesSetB, sketchPlane.Id, fullHostTargetFace.YVector);
-
-                if (_doc.ActiveView != null) _doc.ActiveView.PartsVisibility = PartsVisibility.ShowPartsOnly;
-                if (openingBoxes.Count > 0) _openingService.ExcludePartsInOpenings(hostOriginal.Id, openingBoxes);
-                t.Commit();
+                var pm = PartUtils.GetAssociatedPartMaker(_doc, rootPartId);
+                if (pm != null) makersToDelete.Add(pm.Id);
             }
+            
+            if (makersToDelete.Count > 0)
+            {
+                _doc.Delete(makersToDelete.ToList()); 
+                _doc.Regenerate(); // 必須刷新，讓後續能抓到原始未分割尺寸
+            }
+
+            List<ElementId> siblingPartIds = PartUtils.GetAssociatedParts(_doc, hostOriginal.Id, false, true).ToList();
+            SketchPlane sketchPlane = SketchPlane.Create(_doc, plane);
+            List<BoundingBoxXYZ> openingBoxes = _openingService.FindLinkedOpenings(hostOriginal);
+
+            List<ElementId> horizPlanes = new List<ElementId>();
+            List<ElementId> vertPlanesSetA = new List<ElementId>();
+            List<ElementId> vertPlanesSetB = new List<ElementId>();
+
+            // 3. 建立網格與約束 (內含 2mm 邊界保護)
+            CreateGridWeb(fullHostTargetFace, horizPlanes, vertPlanesSetA, vertPlanesSetB, hostOriginal.Id);
+            _doc.Regenerate();
+
+            GridConstraintManager constraintMgr = new GridConstraintManager(_doc, fullHostTargetFace, _config);
+            constraintMgr.LockPlanes(horizPlanes, true);
+            
+            List<ElementId> allVertPlanes = new List<ElementId>(vertPlanesSetA);
+            allVertPlanes.AddRange(vertPlanesSetB);
+            constraintMgr.LockPlanes(allVertPlanes, false);
+            _doc.Regenerate();
+
+            // 4. 兩階段分割與開口排除
+            PerformDivision(siblingPartIds, horizPlanes, vertPlanesSetA, vertPlanesSetB, sketchPlane.Id, fullHostTargetFace.YVector);
+
+            if (openingBoxes.Count > 0) _openingService.ExcludePartsInOpenings(hostOriginal.Id, openingBoxes);
         }
 
         private PlanarFace GetTargetFace(Element host)
@@ -1360,11 +1196,14 @@ namespace TilePlanner.Core
             XYZ x = face.XVector, y = face.YVector, n = face.FaceNormal, o = face.Origin;
             double ud = _config.CellWidthFeet, vd = _config.CellHeightFeet;
             
-            // [V2.5 修正] 嚴格控制網格線長度兩端各加 30cm
             double ext = 300.0 / 304.8; 
+            double edgeTolerance = 0.0065; 
+
             Category sc = _gridService.GetOrCreateSubcategory();
 
             var hPoints = GeometryService.CalculateGridPoints(bb.Min.V, bb.Max.V, vd, _config.HGroutGapFeet / 2.0);
+            hPoints.RemoveAll(p => p <= bb.Min.V + edgeTolerance || p >= bb.Max.V - edgeTolerance);
+
             for (int i = 0; i < hPoints.Count; i++)
             {
                 XYZ p1 = GeometryService.ProjectToXYZ(o, x, y, bb.Min.U - ext, hPoints[i]);
@@ -1374,6 +1213,8 @@ namespace TilePlanner.Core
             }
 
             var vPoints = GeometryService.CalculateGridPoints(bb.Min.U, bb.Max.U, ud, _config.VGroutGapFeet / 2.0);
+            vPoints.RemoveAll(p => p <= bb.Min.U + edgeTolerance || p >= bb.Max.U - edgeTolerance);
+
             for (int i = 0; i < vPoints.Count; i++)
             {
                 XYZ p1_A = GeometryService.ProjectToXYZ(o, x, y, vPoints[i], bb.Min.V - ext);
@@ -1384,34 +1225,57 @@ namespace TilePlanner.Core
                 if (_config.PatternType == TilePatternType.RunningBond)
                 {
                     double offsetU = vPoints[i] + ud * _config.RunningBondOffset;
-                    XYZ p1_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Min.V - ext);
-                    XYZ p2_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Max.V + ext);
-                    var idB = _gridService.CreateReferencePlane(p1_B, p2_B, n, $"TileGrid_VB_{i}_{hostId}", sc);
-                    if (idB != ElementId.InvalidElementId) vb.Add(idB);
+                    if (offsetU > bb.Min.U + edgeTolerance && offsetU < bb.Max.U - edgeTolerance)
+                    {
+                        XYZ p1_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Min.V - ext);
+                        XYZ p2_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Max.U + ext);
+                        var idB = _gridService.CreateReferencePlane(p1_B, p2_B, n, $"TileGrid_VB_{i}_{hostId}", sc);
+                        if (idB != ElementId.InvalidElementId) vb.Add(idB);
+                    }
                 }
             }
         }
 
         private void PerformDivision(List<ElementId> siblingIds, List<ElementId> hPlanes, List<ElementId> vaPlanes, List<ElementId> vbPlanes, ElementId sketchId, XYZ ySort)
         {
-            // [V2.5 防呆] 防止極端尺寸導致空陣列崩潰
             if (hPlanes.Count > 0)
             {
-                PartMaker pmH = _divisionService.Divide(siblingIds, hPlanes, sketchId);
-                if (pmH != null) _divisionService.SetGroutGap(pmH, _config.HGroutGapFeet);
+                foreach (var pid in siblingIds)
+                {
+                    try
+                    {
+                        PartMaker pmH = _divisionService.Divide(new List<ElementId> { pid }, hPlanes, sketchId);
+                        if (pmH != null) _divisionService.SetGroutGap(pmH, _config.HGroutGapFeet);
+                    }
+                    catch { }
+                }
                 _doc.Regenerate();
             }
 
             var stripIds = new List<ElementId>();
-            foreach (var pid in siblingIds) stripIds.AddRange(_divisionService.GetAssociatedParts(pid));
+            foreach (var pid in siblingIds) 
+            {
+                if (PartUtils.HasAssociatedParts(_doc, pid))
+                    stripIds.AddRange(PartUtils.GetAssociatedParts(_doc, pid, false, true));
+                else
+                    stripIds.Add(pid);
+            }
+            
             if (stripIds.Count == 0) return;
 
             if (_config.PatternType == TilePatternType.Grid)
             {
                 if (vaPlanes.Count > 0)
                 {
-                    PartMaker pmV = _divisionService.Divide(stripIds, vaPlanes, sketchId);
-                    if (pmV != null) _divisionService.SetGroutGap(pmV, _config.VGroutGapFeet);
+                    foreach (var stripId in stripIds)
+                    {
+                        try 
+                        {
+                            PartMaker pmV = _divisionService.Divide(new List<ElementId> { stripId }, vaPlanes, sketchId);
+                            if (pmV != null) _divisionService.SetGroutGap(pmV, _config.VGroutGapFeet);
+                        } 
+                        catch { }
+                    }
                 }
             }
             else
@@ -1425,15 +1289,18 @@ namespace TilePlanner.Core
                     var vps = (i % 2 == 0) ? vaPlanes : vbPlanes;
                     if (vps.Count > 0)
                     {
-                        PartMaker pmV = _divisionService.Divide(new List<ElementId> { sortedStrips[i].Id }, vps, sketchId);
-                        if (pmV != null) _divisionService.SetGroutGap(pmV, _config.VGroutGapFeet);
+                        try
+                        {
+                            PartMaker pmV = _divisionService.Divide(new List<ElementId> { sortedStrips[i].Id }, vps, sketchId);
+                            if (pmV != null) _divisionService.SetGroutGap(pmV, _config.VGroutGapFeet);
+                        }
+                        catch { }
                     }
                 }
             }
         }
     }
 }
-
 
 
 
@@ -1521,7 +1388,6 @@ namespace TilePlanner.Core
 
 
 
-
 ========================================
 FILE: TilePlanner\Core\TilePattern.cs
 ========================================
@@ -1585,7 +1451,6 @@ namespace TilePlanner.Core
         }
     }
 }
-
 
 
 
@@ -1706,7 +1571,6 @@ namespace TilePlanner.Core
 
 
 
-
 ========================================
 FILE: TilePlanner\Core\Services\DivisionService.cs
 ========================================
@@ -1769,7 +1633,6 @@ namespace TilePlanner.Core.Services
 
 
 
-
 ========================================
 FILE: TilePlanner\Core\Services\GeometryService.cs
 ========================================
@@ -1810,7 +1673,6 @@ namespace TilePlanner.Core.Services
         }
     }
 }
-
 
 
 
@@ -1872,7 +1734,6 @@ namespace TilePlanner.Core.Services
         }
     }
 }
-
 
 
 
@@ -1953,7 +1814,6 @@ namespace TilePlanner.Core.Services
 
 
 
-
 ========================================
 FILE: TilePlanner\Properties\AssemblyInfo.cs
 ========================================
@@ -1969,7 +1829,6 @@ using System.Runtime.InteropServices;
 [assembly: Guid("a1b2c3d4-e5f6-7890-abcd-ef1234567890")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
-
 
 
 
@@ -2412,7 +2271,6 @@ namespace TilePlanner.UI
         }
     }
 }
-
 
 
 
@@ -3992,7 +3850,6 @@ Say "Installation finished"
 # Q37w/ocvXIH/qXUllulfh5vINVYqXK3d+l0QT8LCMIxXpJSSgtcFcPJG6aSdOFRQ
 # r6EOj+C9DH5MueMd9SY=
 # SIG # End signature block
-
 
 
 

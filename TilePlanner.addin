@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RevitAddIns>
-  <!-- 應用程式入口（Ribbon UI） -->
   <AddIn Type="Application">
     <Name>TilePlanner</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
@@ -10,7 +9,6 @@
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
 
-  <!-- 建立磁磚計畫指令 -->
   <AddIn Type="Command">
     <Name>建立磁磚計畫</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
@@ -20,7 +18,6 @@
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
 
-  <!-- 移除磁磚計畫指令 -->
   <AddIn Type="Command">
     <Name>移除磁磚計畫</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
@@ -29,7 +26,7 @@
     <VendorId>TilePlanner</VendorId>
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
-  <!-- 格線整體連動指令 -->
+
   <AddIn Type="Command">
     <Name>格線整體連動</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
@@ -38,12 +35,21 @@
     <VendorId>TilePlanner</VendorId>
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
-  <!-- 開關網格顯示指令 (V2.3) -->
+
   <AddIn Type="Command">
     <Name>開關網格顯示</Name>
     <Assembly>TilePlanner\TilePlanner.dll</Assembly>
     <FullClassName>TilePlanner.Commands.ToggleGridCommand</FullClassName>
     <AddInId>E5F6A7B8-C9D0-1234-EFAB-345678901234</AddInId>
+    <VendorId>TilePlanner</VendorId>
+    <VendorDescription>磁磚計畫外掛</VendorDescription>
+  </AddIn>
+
+  <AddIn Type="Command">
+    <Name>開關零件顯示</Name>
+    <Assembly>TilePlanner\TilePlanner.dll</Assembly>
+    <FullClassName>TilePlanner.Commands.TogglePartsVisibilityCommand</FullClassName>
+    <AddInId>F6A7B8C9-D0E1-2345-FABC-456789012345</AddInId>
     <VendorId>TilePlanner</VendorId>
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>

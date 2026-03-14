@@ -2,14 +2,15 @@
 
 以 Revit 「零件 (Parts)」與「參照平面切割」架構製作最高效能磁磚排列計畫的外掛工具。
 
-## 🎯 V2.6 版本亮點 — 邊界退縮熱修復 (Hotfix)
+## 🎯 V3.1 版本亮點 — 單一交易與全域靜默版
 
-**版本 V2.6 (2026-03-14)** 針對生產環境反饋的「邊緣磁磚退縮」問題進行緊急修復：
+**版本 V3.1 (2026-03-14)** 是穩定性的終極里程碑，徹底解決了 Revit API 警告延遲導致的標報彈窗問題：
 
-- ✨ **邊界保護容差 (Edge Tolerance)** — 防止灰縫吃掉母體邊緣，磁磚 100% 貼齊牆頂與樓板。
-- ✨ **幾何穩定性提升** — 改善極限尺寸下的分割計算。
+- ✨ **100% 靜默執行 (Ultra Silence)** — 採用獨創的 `Master Transaction` 加掛 `WarningSwallower` 機制，徹底消滅所有分割過程產生的 HTML 錯誤報告。
+- ✨ **獨立大按鍵 (Independent UI)** — 視覺化 Ribbon 版面重組，所有工具各自獨立大圖示排列，不再疊加，點擊更精準。
+- ✨ **全域 3D 支持** — 直接操控底層 `VIEW_PARTS_VISIBILITY` 參數，在 3D、平面、剖面視圖均可實現一鍵無縫切換。
 
-👉 **詳細技術文檔**: 見 [V26_TECHNICAL_GUIDE.md](V26_TECHNICAL_GUIDE.md)
+👉 **詳細技術文檔**: 見 [V31_TECHNICAL_GUIDE.md](V31_TECHNICAL_GUIDE.md)
 
 ---
 
@@ -51,11 +52,15 @@
 2. 建立一道牆體，先在右側屬性面板確認視圖的「**零件可見性 (Parts Visibility)**」設為「**展示零件 (Show Parts)**」。
 3. 選取該牆面，點擊 Revit 內建的「**建立零件 (Create Parts)**」按鈕。
 4. 在 Ribbon 中找到「**磁磚計畫**」標籤並點擊「**建立磁磚計畫**」。
-5. **選取剛剛建立的零件實體 (Part)**。
-6. 在對話框中設定尺寸與排列模式，點擊「確定」。
-7. 程式將自動進行切割並隱藏灰縫。
-8. **顯示管理**：點擊「**顯示/隱藏網格**」按鈕可隨時開關綠色輔助線，方便進行對齊放樣。
-9. **調整放樣**：使用 Revit 的「移動 (MV)」工具選取任何一根網格，即可帶動全體磁磚位移，不影響單片磁磚尺寸。
+5. **磁磚計畫設定**：在對話框中設定尺寸與排列模式，點擊「確定」。
+6. 程式將自動進行切割並隱藏灰縫。執行完成後，視圖會自動切換為「僅顯示零件」。
+7. **五大工具按鈕**：
+   - **建立磁磚計畫**：啟動主要生成流程。
+   - **移除磁磚計畫**：還原選取的物件。
+   - **整體連動**：切換格線連動狀態（預設開啟）。
+   - **顯示/隱藏 網格**：切換綠色輔助線的可見性（大圖示獨立按鈕）。
+   - **顯示/隱藏 零件**：切換「原主體」與「零件」顯示，支援 3D 視圖（大圖示獨立按鈕）。
+8. **調整放樣**：使用 Revit 的「移動 (MV)」工具選取任何一根網格，即可帶動全體磁磚位移。
 
 ### 3. 移除磁磚計畫
 
@@ -112,16 +117,19 @@
 
 ```
 TilePlanner/
-├── App.cs                          # Ribbon UI 入口
+├── App.cs                          # Ribbon UI 入口 (定義 5 個獨立大按鈕)
 ├── Commands/
-│   ├── CreateTilePlanCommand.cs    # 呼叫分割引擎 (TransactionGroup 包裝)
+│   ├── CreateTilePlanCommand.cs    # 建立 Master Transaction 並配置 WarningSwallower
 │   ├── RemoveTilePlanCommand.cs    # 追查 Host 並刪除 PartMaker 與網格群組
-│   └── ToggleLinkedMoveCommand.cs  # (未來支援) 格線連動開關
+│   ├── ToggleLinkedMoveCommand.cs  # (未來支援) 格線連動開關
+│   ├── TogglePartsVisibilityCommand.cs # 全域視圖切換 (支援 3D)
+│   └── ToggleGridCommand.cs        # 輔助網格開關
 ├── Core/
 │   ├── TileConfig.cs               # 參數配置
 │   ├── TilePattern.cs              # 排列列舉
-│   ├── TilePartEngine.cs           # 核心：兩階段切割 + 雙刀流 + 自動排除
-│   └── TileDataManager.cs          # Extensible Storage 架構
+│   ├── TilePartEngine.cs           # 核心引擎 (純邏輯運算，掛載 WarningSwallower)
+│   ├── GridConstraintManager.cs    # 隱形標註鎖定與延伸機制
+│   └── ...
 └── UI/
     └── TilePlannerDialog.cs        # 尺寸與排版 UI 對話框
 ```

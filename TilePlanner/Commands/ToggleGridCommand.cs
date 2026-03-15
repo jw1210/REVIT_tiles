@@ -20,6 +20,8 @@ namespace TilePlanner.Commands
             // ==========================================
             // [V3.6 核心修正] 移除 activeView.Id 的搜尋限制！
             // 改為從「整個專案 (doc)」去撈取，這樣即使被隱藏的線也能被找到
+            // ==========================================
+            var gridPlanes = new FilteredElementCollector(doc)
                 .OfClass(typeof(ReferencePlane))
                 .Cast<ReferencePlane>()
                 .Where(rp => rp.Name != null && rp.Name.Contains("TileGrid_"))

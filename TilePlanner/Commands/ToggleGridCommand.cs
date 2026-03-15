@@ -17,8 +17,9 @@ namespace TilePlanner.Commands
             Document doc = uidoc.Document;
             View activeView = doc.ActiveView;
 
-            // [V3.5 修正] 直接抓取當前視圖中，所有檔名帶有 TileGrid_ 的參考平面
-            var gridPlanes = new FilteredElementCollector(doc, activeView.Id)
+            // ==========================================
+            // [V3.6 核心修正] 移除 activeView.Id 的搜尋限制！
+            // 改為從「整個專案 (doc)」去撈取，這樣即使被隱藏的線也能被找到
                 .OfClass(typeof(ReferencePlane))
                 .Cast<ReferencePlane>()
                 .Where(rp => rp.Name != null && rp.Name.Contains("TileGrid_"))
@@ -26,7 +27,7 @@ namespace TilePlanner.Commands
 
             if (gridPlanes.Count == 0)
             {
-                TaskDialog.Show("顯示/隱藏網格", "當前視圖找不到磁磚參考線。\n(請確認已建立磁磚計畫，或是當前視圖無網格存在)");
+                TaskDialog.Show("顯示/隱藏網格", "整個專案中找不到磁磚參考線。\n(請確認已建立磁磚計畫)");
                 return Result.Succeeded;
             }
 
@@ -35,18 +36,20 @@ namespace TilePlanner.Commands
                 trans.Start();
                 try
                 {
-                    // 檢查第一條參考線目前的狀態 (隱藏 或 顯示)
-                    bool isHidden = gridPlanes.First().IsHidden(activeView);
-                    List<ElementId> idsToToggle = gridPlanes.Select(rp => rp.Id).ToList();
+                    // 分別篩選出在「當前視圖」中 可見(Visible) 與 隱藏(Hidden) 的參考線 ID
+                    var visiblePlanes = gridPlanes.Where(rp => !rp.IsHidden(activeView)).Select(rp => rp.Id).ToList();
+                    var hiddenPlanes = gridPlanes.Where(rp => rp.IsHidden(activeView)).Select(rp => rp.Id).ToList();
 
-                    // 強制針對這些實體執行隱藏/取消隱藏
-                    if (isHidden)
+                    // 邏輯：只要畫面上有任何一條網格是顯示的，就把大家全部隱藏；
+                    // 反之，如果畫面上全部的網格都已經隱藏了，就把它們全部叫出來。
+                    if (visiblePlanes.Count > 0)
                     {
-                        activeView.UnhideElements(idsToToggle);
+                        activeView.HideElements(visiblePlanes);
                     }
-                    else
+                    else if (hiddenPlanes.Count > 0)
                     {
-                        activeView.HideElements(idsToToggle);
+                        // 取消隱藏時，必須確保傳入的 ID 確實處於隱藏狀態，否則 API 會報錯
+                        activeView.UnhideElements(hiddenPlanes);
                     }
 
                     trans.Commit();

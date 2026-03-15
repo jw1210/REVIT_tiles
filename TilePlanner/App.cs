@@ -40,6 +40,17 @@ namespace TilePlanner
                 togglePartsBtnData.ToolTip = "快速切換原主體(Wall)與切割好的磁磚零件(Parts)";
                 panel.AddItem(togglePartsBtnData);
 
+                // ==========================================
+                // [V3.7] 手動局部轉角收邊
+                // ==========================================
+                PushButtonData manualJoinBtnData = new PushButtonData(
+                    "ManualCornerJoin", 
+                    "局部轉角\n(手動收邊)", 
+                    assemblyPath, 
+                    "TilePlanner.Commands.ManualCornerJoinCommand");
+                manualJoinBtnData.ToolTip = "獨立選取兩塊磁磚，手動將其接合形式變更為 45 度角或蓋磚。支援牆壁與樓板部位。";
+                panel.AddItem(manualJoinBtnData);
+
                 return Result.Succeeded;
             }
             catch (Exception)

@@ -21,29 +21,26 @@ namespace TilePlanner.Commands
 
             try
             {
-                Reference elemRef;
+                IList<Reference> elemRefs;
                 try
                 {
-                    elemRef = uidoc.Selection.PickObject(ObjectType.Element, new PartSelectionFilter(), "請選取要進行磁磚分割的牆面、樓板或已建立的實體零件 (Part)");
+                    // [V3.7 升級] 改為 PickObjects，允許按住 Ctrl 或拉框選取多道牆面/樓板
+                    elemRefs = uidoc.Selection.PickObjects(ObjectType.Element, new PartSelectionFilter(), "請選取「一或多個」要進行磁磚分割的牆面、樓板或實體零件 (Part)");
                 }
                 catch (Autodesk.Revit.Exceptions.OperationCanceledException)
                 {
                     return Result.Cancelled;
                 }
-                Element selectedElement = doc.GetElement(elemRef.ElementId);
+
+                if (elemRefs == null || elemRefs.Count == 0) return Result.Cancelled;
 
                 TilePlannerDialog dialog = new TilePlannerDialog();
-                if (dialog.ShowDialog() != true)
-                    return Result.Cancelled;
+                if (dialog.ShowDialog() != true) return Result.Cancelled;
 
                 TileConfig config = dialog.GetTileConfig();
 
-                // ==========================================
-                // [V3.1 架構] 單一 Master Transaction 
-                // ==========================================
-                using (Transaction masterTrans = new Transaction(doc, "AntiGravity 磁磚計畫 (V3.1)"))
+                using (Transaction masterTrans = new Transaction(doc, "AntiGravity 磁磚計畫 V3.7 (批次分割)"))
                 {
-                    // 掛載全域警告吞噬者，保證 100% 靜默
                     FailureHandlingOptions options = masterTrans.GetFailureHandlingOptions();
                     options.SetFailuresPreprocessor(new WarningSwallower());
                     masterTrans.SetFailureHandlingOptions(options);
@@ -52,50 +49,68 @@ namespace TilePlanner.Commands
 
                     try
                     {
-                        // 1. 自動建立零件
-                        if (selectedElement is Wall || selectedElement is Floor || selectedElement is RoofBase)
-                        {
-                            if (PartUtils.AreElementsValidForCreateParts(doc, new List<ElementId> { selectedElement.Id }))
-                            {
-                                PartUtils.CreateParts(doc, new List<ElementId> { selectedElement.Id });
-                                doc.Regenerate(); 
+                        List<ElementId> elementsToCreateParts = new List<ElementId>();
+                        List<Element> finalElementsToProcess = new List<Element>();
 
-                                ICollection<ElementId> parts = PartUtils.GetAssociatedParts(doc, selectedElement.Id, true, true);
-                                if (parts.Count > 0)
-                                    selectedElement = doc.GetElement(parts.First());
-                                else
-                                    throw new Exception("無法從選取的物件產生零件實體，請確認其可見性。");
-                            }
-                            else
+                        // 1. 分類選取的物件，提取需要建立 Part 的母體
+                        foreach (Reference r in elemRefs)
+                        {
+                            Element el = doc.GetElement(r);
+                            if (el is Wall || el is Floor || el is RoofBase || el is Ceiling)
                             {
-                                if (PartUtils.HasAssociatedParts(doc, selectedElement.Id))
+                                if (PartUtils.AreElementsValidForCreateParts(doc, new List<ElementId> { el.Id }))
                                 {
-                                    ICollection<ElementId> parts = PartUtils.GetAssociatedParts(doc, selectedElement.Id, true, true);
-                                    if (parts.Count > 0)
-                                        selectedElement = doc.GetElement(parts.First());
+                                    elementsToCreateParts.Add(el.Id);
                                 }
-                                else
+                                else if (PartUtils.HasAssociatedParts(doc, el.Id))
                                 {
-                                    throw new Exception("選取的物件不支援建立零件 (Parts)。");
+                                    var parts = PartUtils.GetAssociatedParts(doc, el.Id, true, true);
+                                    if (parts.Count > 0) finalElementsToProcess.Add(doc.GetElement(parts.First()));
                                 }
+                            }
+                            else if (el is Part)
+                            {
+                                finalElementsToProcess.Add(el);
                             }
                         }
 
-                        // 2. 執行核心分割引擎 (內部純邏輯，無 Transaction)
-                        TilePartEngine engine = new TilePartEngine(doc, config);
-                        engine.ExecuteOnElement(selectedElement);
+                        // 2. 批次建立 Parts (一次性生成效能最高)
+                        if (elementsToCreateParts.Count > 0)
+                        {
+                            PartUtils.CreateParts(doc, elementsToCreateParts);
+                            doc.Regenerate(); 
 
-                        // 3. 切換當前視圖顯示狀態
+                            foreach (ElementId id in elementsToCreateParts)
+                            {
+                                var parts = PartUtils.GetAssociatedParts(doc, id, true, true);
+                                if (parts.Count > 0) finalElementsToProcess.Add(doc.GetElement(parts.First()));
+                            }
+                        }
+
+                        // 3. 批次執行核心分割引擎
+                        TilePartEngine engine = new TilePartEngine(doc, config);
+                        int successCount = 0;
+
+                        foreach (Element targetEl in finalElementsToProcess)
+                        {
+                            try
+                            {
+                                engine.ExecuteOnElement(targetEl);
+                                successCount++;
+                            }
+                            catch { /* 靜默處理單一失敗，確保其他牆面能繼續完成 */ }
+                        }
+
+                        // 4. 切換當前視圖顯示狀態為零件
                         Parameter pv = doc.ActiveView.get_Parameter(BuiltInParameter.VIEW_PARTS_VISIBILITY);
                         if (pv != null && !pv.IsReadOnly)
                         {
                             pv.Set((int)PartsVisibility.ShowPartsOnly);
                         }
 
-                        // 4. 一次性提交所有變更，消滅所有HTML錯誤報告
                         masterTrans.Commit();
 
-                        TaskDialog.Show("磁磚計畫 - 完成", "實體磁磚零件 (Parts) 已生成並切割完成！\n網格已鎖定，可隨意拖拉連動。");
+                        TaskDialog.Show("磁磚計畫 - 批次完成", $"✅ 成功處理了 {successCount} 個面的磁磚分割！\n網格已鎖定，可隨意拖拉連動。");
                         return Result.Succeeded;
                     }
                     catch (Exception ex)
@@ -121,10 +136,6 @@ namespace TilePlanner.Commands
         {
             return elem is Part || elem is Wall || elem is Floor || elem is RoofBase || elem is Ceiling;
         }
-
-        public bool AllowReference(Reference reference, XYZ position)
-        {
-            return true;
-        }
+        public bool AllowReference(Reference reference, XYZ position) => true;
     }
 }

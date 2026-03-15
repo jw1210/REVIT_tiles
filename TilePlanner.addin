@@ -53,4 +53,13 @@
     <VendorId>TilePlanner</VendorId>
     <VendorDescription>磁磚計畫外掛</VendorDescription>
   </AddIn>
+
+  <AddIn Type="Command">
+    <Name>局部轉角收邊</Name>
+    <Assembly>TilePlanner\TilePlanner.dll</Assembly>
+    <FullClassName>TilePlanner.Commands.ManualCornerJoinCommand</FullClassName>
+    <AddInId>7890ABCD-E5F6-4321-ABCD-EF1234567890</AddInId>
+    <VendorId>TilePlanner</VendorId>
+    <VendorDescription>磁磚計畫外掛</VendorDescription>
+  </AddIn>
 </RevitAddIns>

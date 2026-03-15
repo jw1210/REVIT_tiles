@@ -18,6 +18,9 @@ namespace TilePlanner.Commands
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
 
+            // [V3.9.3] 授權驗證
+            if (!TilePlanner.Security.LicenseManager.Validate()) return Result.Failed;
+
             try
             {
                 Reference elemRef = uidoc.Selection.PickObject(ObjectType.Element, new PartSelectionFilter(), "請選取要移除磁磚計畫的實體零件 (Part)");

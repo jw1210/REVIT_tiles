@@ -17,6 +17,9 @@ namespace TilePlanner.Commands
             Document doc = uidoc.Document;
             View activeView = doc.ActiveView;
 
+            // [V3.9.3] 授權驗證
+            if (!TilePlanner.Security.LicenseManager.Validate()) return Result.Failed;
+
             // ==========================================
             // [V3.6 核心修正] 移除 activeView.Id 的搜尋限制！
             // 改為從「整個專案 (doc)」去撈取，這樣即使被隱藏的線也能被找到

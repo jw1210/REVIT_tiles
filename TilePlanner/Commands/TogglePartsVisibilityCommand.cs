@@ -15,6 +15,9 @@ namespace TilePlanner.Commands
             Document doc = uidoc.Document;
             View activeView = doc.ActiveView;
 
+            // [V3.9.3] 授權驗證
+            if (!TilePlanner.Security.LicenseManager.Validate()) return Result.Failed;
+
             // [V3.1] 精準抓取底層參數，完美支援 3D 視角與各類平面圖
             Parameter pv = activeView.get_Parameter(BuiltInParameter.VIEW_PARTS_VISIBILITY);
             

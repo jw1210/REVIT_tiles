@@ -16,6 +16,9 @@ namespace TilePlanner.Commands
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            // [V3.9.3] 授權驗證
+            if (!TilePlanner.Security.LicenseManager.Validate()) return Result.Failed;
+
             try
             {
                 TaskDialog.Show("磁磚計畫 - 網格連動",

@@ -112,6 +112,12 @@ namespace TilePlanner.Commands
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            // ==========================================
+            // [V3.9.3] 授權驗證檢查
+            // ==========================================
+            if (!TilePlanner.Security.LicenseManager.Validate())
+                return Result.Failed;
+
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
 

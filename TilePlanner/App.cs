@@ -17,6 +17,7 @@ namespace TilePlanner
 
                 // 建立與移除按鈕
                 PushButtonData createBtnData = new PushButtonData("CreateTilePlan", "建立\n磁磚計畫", assemblyPath, "TilePlanner.Commands.CreateTilePlanCommand");
+                createBtnData.ToolTip = "選取牆面、樓板後自動產生成 3D 磁磚計畫 (V3.8 支援批次多選)";
                 panel.AddItem(createBtnData);
 
                 PushButtonData removeBtnData = new PushButtonData("RemoveTilePlan", "移除\n磁磚計畫", assemblyPath, "TilePlanner.Commands.RemoveTilePlanCommand");
@@ -41,7 +42,7 @@ namespace TilePlanner
                 panel.AddItem(togglePartsBtnData);
 
                 // ==========================================
-                // [V3.7] 手動局部轉角收邊
+                // [V3.8] 手動局部轉角收邊
                 // ==========================================
                 PushButtonData manualJoinBtnData = new PushButtonData(
                     "ManualCornerJoin", 

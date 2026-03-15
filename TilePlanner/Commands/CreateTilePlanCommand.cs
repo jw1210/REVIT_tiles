@@ -24,8 +24,9 @@ namespace TilePlanner.Commands
                 IList<Reference> elemRefs;
                 try
                 {
-                    // [V3.7 升級] 改為 PickObjects，允許按住 Ctrl 或拉框選取多道牆面/樓板
-                    elemRefs = uidoc.Selection.PickObjects(ObjectType.Element, new PartSelectionFilter(), "請選取「一或多個」要進行磁磚分割的牆面、樓板或實體零件 (Part)");
+                    // [V3.8] 加入明確的 Enter 鍵確認提示
+                    elemRefs = uidoc.Selection.PickObjects(ObjectType.Element, new PartSelectionFilter(), 
+                        "請拉框或點選「一或多個」要進行磁磚分割的牆面/樓板 (選取完成請按 Enter 鍵確認)");
                 }
                 catch (Autodesk.Revit.Exceptions.OperationCanceledException)
                 {

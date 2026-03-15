@@ -1,3 +1,23 @@
+/* 
+================================================================================
+  AntiGravity TilePlanner - SOURCE CODE MASTER BACKUP
+================================================================================
+  本文件為 TilePlanner 核心指令 (ManualCornerJoinCommand.cs) 的歷史備份總集。
+  往後版本更新後，請將新版原始碼追加於文件頂端，並註明版本號與更新日期。
+================================================================================
+*/
+
+/* 
+--------------------------------------------------------------------------------
+  [V3.9.2] — 終極霸道攔截版 (Ultimate Master)
+  日期: 2026-03-15
+  特點: 
+    1. Window 全域 PreviewKeyDown 攔截 Enter 鍵。
+    2. LocalWarningSwallower 具備 Error Resolver 邏輯，100% 靜默刪除。
+    3. 完整整合 V3.9.1 的全域軸心偵測幾何引擎。
+--------------------------------------------------------------------------------
+*/
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -86,9 +106,6 @@ namespace TilePlanner.Commands
 
             this.Content = grid;
 
-            // ==========================================
-            // [V3.9.2 霸道按鍵攔截] 將 Enter 監聽器綁定在整個 Window 上
-            // ==========================================
             this.PreviewKeyDown += (s, e) => 
             {
                 if (e.Key == System.Windows.Input.Key.Enter || e.Key == System.Windows.Input.Key.Return)
@@ -170,16 +187,12 @@ namespace TilePlanner.Commands
                 {
                     trans.Start();
                     
-                    // 掛載終極吞噬者 (相容性修正版)
                     FailureHandlingOptions options = trans.GetFailureHandlingOptions();
                     options.SetFailuresPreprocessor(new LocalWarningSwallower());
                     trans.SetFailureHandlingOptions(options);
 
                     try
                     {
-                        // ==========================================
-                        // [V3.9.2 終極保留] 全域軸心與共面偵測 (Universal Axis)
-                        // ==========================================
                         Solid solidA = GetSolid(partA);
                         Solid solidB = GetSolid(partB);
 
@@ -378,9 +391,6 @@ namespace TilePlanner.Commands
         }
     }
 
-    // ===============================================
-    // [V3.9.2 核心修復] 終極警告吞噬者 (相容性修正版)
-    // ===============================================
     public class LocalWarningSwallower : IFailuresPreprocessor
     {
         public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
@@ -407,3 +417,29 @@ namespace TilePlanner.Commands
         public bool AllowReference(Reference reference, XYZ position) => true;
     }
 }
+
+/* 
+--------------------------------------------------------------------------------
+  [V3.9.1] — 全域軸心偵測版 (Universal Axis Detection)
+  日期: 2026-03-15
+  特點: 
+    1. 首創「側邊面積偵測」邏輯，精準抓取非最大面。
+    2. 支援壓頂磚 (Wall Cap) 與地磚的 45 度切角。
+    3. 動態判定 Z 軸或世界座標軸心。
+--------------------------------------------------------------------------------
+*/
+
+// (原始碼細節省略，因 V3.9.2 已完整包含並優化其核心 logic)
+// 若需調回此版本，請參考對話歷史紀錄。
+
+/* 
+--------------------------------------------------------------------------------
+  [V3.9.0] — 自訂轉角間距版
+  日期: 2026-03-15
+  特點: 
+    1. 首度導入 WPF Dynamic UI (No-XAML)。
+    2. 提供自訂灰縫毫米輸入。
+--------------------------------------------------------------------------------
+*/
+
+// (早期代碼已存檔於歷史紀錄)

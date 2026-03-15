@@ -2,6 +2,17 @@
 
 本文件記錄了 AntiGravity 磁磚計畫外掛的開發歷程與重大修正內容。
 
+## 🎯 V3.5 版本亮點 — 幾何對位加強版
+
+**版本 V3.5 (2026-03-15)** 攻克了門窗開口對交丁排的干擾，並強化了視圖控制的穩定性：
+
+- ✨ **交丁高度群組化 (Precision Height Grouping)** — 核心邏輯升級！自動偵測並群組位於同一水平高度的碎塊零件，確保交丁排 (Running Bond) 在跨越門窗後依然保持完美的 A-B 對位。
+- ✨ **強制網格開關 (Forced Grid Toggle)** — 徹底解決參考平面在特定視圖下無法隱藏的 Bug，改用直接元素控制 (HideElements) 實現 100% 可靠的視覺切換。
+
+👉 **詳細技術文檔**: 見 [V35_TECHNICAL_GUIDE.md](V35_TECHNICAL_GUIDE.md)
+
+---
+
 ## 🎯 V3.4 版本亮點 — UX 邏輯加固版
 
 **版本 V3.4 (2026-03-14)** 掃除了介面交互中的「邏輯地雷」，大幅提升系統穩定性：
@@ -46,6 +57,19 @@
 👉 **詳細技術文檔**: 見 [V31_TECHNICAL_GUIDE.md](V31_TECHNICAL_GUIDE.md)
 
 ---
+
+---
+
+## [V3.5.0] - 2026-03-15 (幾何對位加強)
+
+### Fixed
+
+- **交丁修復**：修正門窗截斷導致的 Alternating Pattern (A/B) 錯位問題。
+- **網格開關修復**：修正 `ToggleGridCommand` 無法在所有情況下隱藏綠線的 Bug。
+
+### Changed
+
+- **垂直分割策略**：在 `PerformDivision` 中導入 `Tolerance` (0.5 CellHeight) 高度判斷機制。
 
 ## [V3.4.0] - 2026-03-14 (UX 邏輯加固)
 

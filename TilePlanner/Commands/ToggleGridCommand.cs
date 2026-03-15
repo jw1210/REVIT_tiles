@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -6,82 +8,56 @@ using Autodesk.Revit.UI;
 namespace TilePlanner.Commands
 {
     [Transaction(TransactionMode.Manual)]
+    [Regeneration(RegenerationOption.Manual)]
     public class ToggleGridCommand : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            var uiapp = commandData.Application;
-            var uidoc = uiapp.ActiveUIDocument;
-            var doc = uidoc.Document;
+            UIDocument uidoc = commandData.Application.ActiveUIDocument;
+            Document doc = uidoc.Document;
+            View activeView = doc.ActiveView;
 
-            try
+            // [V3.5 修正] 直接抓取當前視圖中，所有檔名帶有 TileGrid_ 的參考平面
+            var gridPlanes = new FilteredElementCollector(doc, activeView.Id)
+                .OfClass(typeof(ReferencePlane))
+                .Cast<ReferencePlane>()
+                .Where(rp => rp.Name != null && rp.Name.Contains("TileGrid_"))
+                .ToList();
+
+            if (gridPlanes.Count == 0)
             {
-                // 1. 取得主品類：參照平面 (OST_CLines)
-                Category refPlaneCat = Category.GetCategory(doc, BuiltInCategory.OST_CLines);
+                TaskDialog.Show("顯示/隱藏網格", "當前視圖找不到磁磚參考線。\n(請確認已建立磁磚計畫，或是當前視圖無網格存在)");
+                return Result.Succeeded;
+            }
 
-                if (refPlaneCat == null)
+            using (Transaction trans = new Transaction(doc, "切換磁磚網格顯示"))
+            {
+                trans.Start();
+                try
                 {
-                    TaskDialog.Show("TilePlanner", "無法取得參照平面品類。");
-                    return Result.Failed;
-                }
+                    // 檢查第一條參考線目前的狀態 (隱藏 或 顯示)
+                    bool isHidden = gridPlanes.First().IsHidden(activeView);
+                    List<ElementId> idsToToggle = gridPlanes.Select(rp => rp.Id).ToList();
 
-                // 2. 尋找子品類：磁磚切割網格
-                Category subCat = null;
-                if (refPlaneCat.SubCategories.Contains("磁磚切割網格"))
-                {
-                    subCat = refPlaneCat.SubCategories.get_Item("磁磚切割網格");
-                }
-                else if (refPlaneCat.SubCategories.Contains("磁磚計畫刀網")) // 向下相容
-                {
-                    subCat = refPlaneCat.SubCategories.get_Item("磁磚計畫刀網");
-                }
-
-                if (subCat == null)
-                {
-                    TaskDialog.Show("TilePlanner", "目前專案中未找到「磁磚切割網格」子品類。請先執行一次磁磚計畫。");
-                    return Result.Failed;
-                }
-
-                // 3. 切換可見性 (Toggle Visibility)
-                using (Transaction t = new Transaction(doc, "切換磁磚網格顯示"))
-                {
-                    t.Start();
-                    
-                    // 取得子品類當前的隱藏狀態
-                    bool currentlyHidden = doc.ActiveView.GetCategoryHidden(subCat.Id);
-                    
-                    // 如果原本是隱藏的，現在使用者要「開啟」：
-                    if (currentlyHidden)
+                    // 強制針對這些實體執行隱藏/取消隱藏
+                    if (isHidden)
                     {
-                        // 1. 強制確保母品類「參照平面」是開啟的
-                        if (doc.ActiveView.CanCategoryBeHidden(refPlaneCat.Id))
-                        {
-                            doc.ActiveView.SetCategoryHidden(refPlaneCat.Id, false);
-                        }
-                        // 2. 開啟子品類
-                        if (doc.ActiveView.CanCategoryBeHidden(subCat.Id))
-                        {
-                            doc.ActiveView.SetCategoryHidden(subCat.Id, false);
-                        }
+                        activeView.UnhideElements(idsToToggle);
                     }
                     else
                     {
-                        // 如果原本是開啟的，直接關閉子品類即可
-                        if (doc.ActiveView.CanCategoryBeHidden(subCat.Id))
-                        {
-                            doc.ActiveView.SetCategoryHidden(subCat.Id, true);
-                        }
+                        activeView.HideElements(idsToToggle);
                     }
 
-                    t.Commit();
+                    trans.Commit();
+                    return Result.Succeeded;
                 }
-
-                return Result.Succeeded;
-            }
-            catch (Exception ex)
-            {
-                message = ex.Message;
-                return Result.Failed;
+                catch (Exception ex)
+                {
+                    trans.RollBack();
+                    message = $"切換網格顯示失敗：{ex.Message}";
+                    return Result.Failed;
+                }
             }
         }
     }

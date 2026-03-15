@@ -181,6 +181,7 @@ namespace TilePlanner.Core
 
         private void PerformDivision(List<ElementId> siblingIds, List<ElementId> hPlanes, List<ElementId> vaPlanes, List<ElementId> vbPlanes, ElementId sketchId, XYZ ySort)
         {
+            // 1. 先執行水平切割
             if (hPlanes.Count > 0)
             {
                 foreach (var pid in siblingIds)
@@ -195,6 +196,7 @@ namespace TilePlanner.Core
                 _doc.Regenerate();
             }
 
+            // 2. 抓取水平切割後產生的所有子零件 (橫條)
             var stripIds = new List<ElementId>();
             foreach (var pid in siblingIds) 
             {
@@ -206,8 +208,10 @@ namespace TilePlanner.Core
             
             if (stripIds.Count == 0) return;
 
+            // 3. 垂直切割
             if (_config.PatternType == TilePatternType.Grid)
             {
+                // 正排：所有橫條都用同一組 VA 網格，不受門窗影響
                 if (vaPlanes.Count > 0)
                 {
                     foreach (var stripId in stripIds)
@@ -223,21 +227,58 @@ namespace TilePlanner.Core
             }
             else
             {
+                // ==========================================
+                // [V3.5 核心修正] 交丁排：精準高度群組化 (解決門窗截斷問題)
+                // ==========================================
+                
+                // 將所有橫條零件依據其「中心點高度 (Y/Z軸)」進行排序
                 var sortedStrips = stripIds.Select(id => _doc.GetElement(id) as Part)
                     .Where(p => p != null && p.get_BoundingBox(null) != null)
-                    .OrderBy(p => (p.get_BoundingBox(null).Min + p.get_BoundingBox(null).Max).DotProduct(ySort)).ToList();
+                    .Select(p => new {
+                        Part = p,
+                        CenterY = ((p.get_BoundingBox(null).Min + p.get_BoundingBox(null).Max) * 0.5).DotProduct(ySort)
+                    })
+                    .OrderBy(x => x.CenterY)
+                    .ToList();
 
-                for (int i = 0; i < sortedStrips.Count; i++)
+                if (sortedStrips.Count > 0)
                 {
-                    var vps = (i % 2 == 0) ? vaPlanes : vbPlanes;
-                    if (vps.Count > 0)
+                    List<List<Part>> rows = new List<List<Part>>();
+                    rows.Add(new List<Part> { sortedStrips[0].Part });
+                    double currentLastCenterY = sortedStrips[0].CenterY;
+
+                    // 依據高度差異，將橫條分裝進對應的「列 (Row)」
+                    for (int i = 1; i < sortedStrips.Count; i++)
                     {
-                        try
+                        // 如果兩塊零件的高度差異「小於半塊磁磚」，代表它們被門窗切斷，但屬於同一列
+                        if (Math.Abs(sortedStrips[i].CenterY - currentLastCenterY) < (_config.CellHeightFeet * 0.5))
                         {
-                            PartMaker pmV = _divisionService.Divide(new List<ElementId> { sortedStrips[i].Id }, vps, sketchId);
-                            if (pmV != null) _divisionService.SetGroutGap(pmV, _config.VGroutGapFeet);
+                            rows.Last().Add(sortedStrips[i].Part);
                         }
-                        catch { }
+                        else
+                        {
+                            // 高度差異超過半塊磁磚，建立新的一列
+                            rows.Add(new List<Part> { sortedStrips[i].Part });
+                            currentLastCenterY = sortedStrips[i].CenterY;
+                        }
+                    }
+
+                    // 現在 rows 完美代表了物理上的每一列 (不受門窗干擾)
+                    for (int i = 0; i < rows.Count; i++)
+                    {
+                        var vps = (i % 2 == 0) ? vaPlanes : vbPlanes;
+                        if (vps.Count > 0)
+                        {
+                            foreach (var part in rows[i])
+                            {
+                                try
+                                {
+                                    PartMaker pmV = _divisionService.Divide(new List<ElementId> { part.Id }, vps, sketchId);
+                                    if (pmV != null) _divisionService.SetGroutGap(pmV, _config.VGroutGapFeet);
+                                }
+                                catch { }
+                            }
+                        }
                     }
                 }
             }

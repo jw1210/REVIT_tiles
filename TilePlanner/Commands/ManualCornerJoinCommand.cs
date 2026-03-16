@@ -9,12 +9,15 @@ using Autodesk.Revit.UI.Selection;
 namespace TilePlanner.Commands
 {
     // ==========================================
-    // [V4.1.4] 技術修訂版 - 垂直雷射刀 + 零件延伸優化
-    // 核心技術：強制垂直切割路徑 (BasisZ) + 自動廢料清理
+    // [V4.1.4] 物理自適應版 - 真實幾何切割科技
+    // 不需要零件預先延伸，只要兩塊磚在轉角有實體接觸，即可精準收頭。
+    // 1. 真實垂直法向分析 (GetOuterVerticalFaceNormal)
+    // 2. 克拉瑪法則精準座標交點 (GetTrueCornerOrigin)
+    // 3. 垂直雷射鎖定切割 (ExecuteVerticalCut / BasisZ)
     // ==========================================
     public enum JoinType
     {
-        OuterMiter,  // 陽角 - 45度斜接
+        OuterMiter,  // 陽角 - 磨角斜接
         OuterCover,  // 陽角 - 正面蓋磚
         InnerButt,   // 陰角 - 密接/離縫
         InnerEmbed   // 陰角 - 結構嵌入
@@ -30,7 +33,7 @@ namespace TilePlanner.Commands
 
         public CornerSettingsDialog()
         {
-            this.Title = "TilePlanner - 轉角接合參數設定 (V4.1.4)";
+            this.Title = "TilePlanner - 轉角接合設定 (V4.1.4 物理自適應)";
             this.Width = 380; this.Height = 280;
             this.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
             this.ResizeMode = System.Windows.ResizeMode.NoResize; this.Topmost = true;
@@ -41,7 +44,7 @@ namespace TilePlanner.Commands
             grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
             grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
 
-            var lblTitle = new System.Windows.Controls.TextBlock { Text = "請選擇轉角接合形式：", FontWeight = System.Windows.FontWeights.Bold, Margin = new System.Windows.Thickness(0, 0, 0, 10) };
+            var lblTitle = new System.Windows.Controls.TextBlock { Text = "請選擇接頭形式與參數：", FontWeight = System.Windows.FontWeights.Bold, Margin = new System.Windows.Thickness(0, 0, 0, 10) };
             System.Windows.Controls.Grid.SetRow(lblTitle, 0); grid.Children.Add(lblTitle);
 
             var spRadios = new System.Windows.Controls.StackPanel();
@@ -54,14 +57,14 @@ namespace TilePlanner.Commands
 
             var spGap = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new System.Windows.Thickness(0, 10, 0, 10) };
             spGap.Children.Add(new System.Windows.Controls.TextBlock { Text = "預留灰縫間距 (mm): ", VerticalAlignment = System.Windows.VerticalAlignment.Center });
-            txtGap = new System.Windows.Controls.TextBox { Text = "2", Width = 60, VerticalContentAlignment = System.Windows.VerticalAlignment.Center, Padding = new System.Windows.Thickness(2) };
+            txtGap = new System.Windows.Controls.TextBox { Text = "2.0", Width = 60, VerticalContentAlignment = System.Windows.VerticalAlignment.Center, Padding = new System.Windows.Thickness(2) };
             txtGap.Loaded += (s, e) => { txtGap.Focus(); txtGap.SelectAll(); };
             spGap.Children.Add(txtGap);
             System.Windows.Controls.Grid.SetRow(spGap, 2); grid.Children.Add(spGap);
 
             var spBtns = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
-            var btnOk = new System.Windows.Controls.Button { Content = "確定", Width = 80, IsDefault = true };
-            var btnCancel = new System.Windows.Controls.Button { Content = "取消", Width = 80, Margin = new System.Windows.Thickness(10, 0, 0, 0), IsCancel = true };
+            var btnOk = new System.Windows.Controls.Button { Content = "確定執行", Width = 90, Height = 25, IsDefault = true };
+            var btnCancel = new System.Windows.Controls.Button { Content = "取消", Width = 80, Height = 25, Margin = new System.Windows.Thickness(10, 0, 0, 0), IsCancel = true };
             
             void ConfirmAction()
             {
@@ -73,7 +76,7 @@ namespace TilePlanner.Commands
                     else SelectedJoinType = JoinType.InnerEmbed;
                     this.DialogResult = true; this.Close();
                 } else {
-                    System.Windows.MessageBox.Show("為確保幾何穩定性並避免產生無效網格，灰縫間距不得小於 2mm。", "設定無效", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    System.Windows.MessageBox.Show("為確保幾何穩定性並避免產生無效切屑，灰縫不得小於 2.0 mm。", "設定無效", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     txtGap.Focus(); txtGap.SelectAll();
                 }
             }
@@ -106,209 +109,140 @@ namespace TilePlanner.Commands
                 
                 double gapFeet = dialog.GapValue / 304.8;
                 JoinType joinType = dialog.SelectedJoinType;
-                bool isMiter = joinType == JoinType.OuterMiter;
-                
-                string promptA = (isMiter || joinType == JoinType.InnerButt) 
-                    ? "第 1 步：選取【第一側】磁磚零件 (完成後請按 Enter)" : "第 1 步：選取【覆蓋側】磁磚 (延伸目標)";
-                string promptB = (isMiter || joinType == JoinType.InnerButt) 
-                    ? "第 2 步：選取【第二側】磁磚零件 (完成後請按 Enter)" : "第 2 步：選取【退縮側】磁磚 (切割目標)";
 
-                IList<Reference> refsA = uidoc.Selection.PickObjects(ObjectType.Element, new PartOnlyFilter(), promptA);
-                if (refsA == null || refsA.Count == 0) return Result.Cancelled;
+                Reference refA = uidoc.Selection.PickObject(ObjectType.Element, new PartOnlyFilter(), "第 1 步：選取 A 側磁磚 (零件)");
+                Reference refB = uidoc.Selection.PickObject(ObjectType.Element, new PartOnlyFilter(), "第 2 步：選取 B 側磁磚 (零件)");
 
-                IList<Reference> refsB = uidoc.Selection.PickObjects(ObjectType.Element, new PartOnlyFilter(), promptB);
-                if (refsB == null || refsB.Count == 0) return Result.Cancelled;
-
-                using (TransactionGroup tg = new TransactionGroup(doc, "手動轉角接合 V4.1.4"))
+                using (Transaction trans = new Transaction(doc, "磁磚計畫 V4.1.4 真實幾何切割"))
                 {
-                    tg.Start();
+                    trans.Start();
+                    var options = trans.GetFailureHandlingOptions();
+                    options.SetFailuresPreprocessor(new LocalWarningSwallower());
+                    trans.SetFailureHandlingOptions(options);
 
-                    using (Transaction trans = new Transaction(doc, "垂直雷射刀執行"))
+                    try
                     {
-                        trans.Start();
-                        var options = trans.GetFailureHandlingOptions();
-                        options.SetFailuresPreprocessor(new LocalWarningSwallower());
-                        trans.SetFailureHandlingOptions(options);
+                        Part partA = doc.GetElement(refA) as Part;
+                        Part partB = doc.GetElement(refB) as Part;
+                        Solid solidA = GetSolid(partA);
+                        Solid solidB = GetSolid(partB);
 
-                        try
+                        // 1. 取得真實垂直面的法向量 (Real Surface Normal)
+                        XYZ nA = GetOuterVerticalFaceNormal(solidA);
+                        XYZ nB = GetOuterVerticalFaceNormal(solidB);
+
+                        // 2. 計算真實轉角交點 (Cramer's Rule Vertex)
+                        XYZ origin = GetTrueCornerOrigin(partA, partB, nA, nB);
+
+                        if (joinType == JoinType.OuterMiter)
                         {
-                            // 步驟 1：主體同步與零件物理延伸 (優化)
-                            SynchronizeHostJoinOrder(doc, refsA[0].ElementId, refsB[0].ElementId, joinType);
-                            doc.Regenerate(); 
+                            // 3. 計算角平分線法向量 (Bisector Plane Normal)
+                            XYZ planeNormal = (nA - nB).Normalize();
 
-                            Part partA = doc.GetElement(refsA[0].ElementId) as Part;
-                            Part partB = doc.GetElement(refsB[0].ElementId) as Part;
-                            Solid solidA = GetSolid(partA);
-                            Solid solidB = GetSolid(partB);
+                            // 4. 計算偏移位置 (向內退縮 1.0mm)
+                            XYZ p1 = origin + planeNormal * (gapFeet / 2.0);
+                            XYZ p2 = origin - planeNormal * (gapFeet / 2.0);
+
+                            // 5. 絕對防呆：誰離重心近，誰就是專屬切刀
+                            XYZ centA = GetCentroid(partA);
+                            XYZ centB = GetCentroid(partB);
                             
-                            XYZ nA = GetLargestFaceNormal(solidA);
-                            XYZ nB = GetLargestFaceNormal(solidB);
-                            XYZ axis = (nA.CrossProduct(nB).GetLength() > 0.1) ? nA.CrossProduct(nB).Normalize() : nA.Normalize();
+                            Plane planeA = (p1.DistanceTo(centA) < p2.DistanceTo(centA)) 
+                                ? Plane.CreateByNormalAndOrigin(planeNormal, p1) 
+                                : Plane.CreateByNormalAndOrigin(planeNormal, p2);
 
-                            var facesA = GetSideFaces(solidA, axis);
-                            var facesB = GetSideFaces(solidB, axis);
-                            if (facesA.Count < 2 || facesB.Count < 2) throw new Exception("磁磚幾何分析失敗。");
+                            Plane planeB = (p1.DistanceTo(centB) < p2.DistanceTo(centB)) 
+                                ? Plane.CreateByNormalAndOrigin(planeNormal, p1) 
+                                : Plane.CreateByNormalAndOrigin(planeNormal, p2);
 
-                            XYZ origin = (solidA.ComputeCentroid() + solidB.ComputeCentroid()) / 2.0;
-                            Plane interfacePlane = Plane.CreateByNormalAndOrigin(axis, origin);
-
-                            List<XYZ> intersectPts = new List<XYZ>();
-                            foreach (var fa in facesA) foreach (var fb in facesB) {
-                                XYZ pt = IntersectThreePlanes(fa, fb, interfacePlane);
-                                if (pt != null) intersectPts.Add(pt);
-                            }
-
-                            if (intersectPts.Count < 2) throw new Exception("交線點計算失敗。");
-
-                            XYZ P1 = intersectPts[0], P2 = intersectPts[0];
-                            double maxD = -1;
-                            for (int i = 0; i < intersectPts.Count; i++) {
-                                for (int j = i + 1; j < intersectPts.Count; j++) {
-                                    double d = intersectPts[i].DistanceTo(intersectPts[j]);
-                                    if (d > maxD) { maxD = d; P1 = intersectPts[i]; P2 = intersectPts[j]; }
-                                }
-                            }
-
-                            XYZ outDir = (nA + nB).Normalize(); 
-                            XYZ Vis, Bur;
-                            if ((P1 - P2).DotProduct(outDir) > 0) { Vis = P1; Bur = P2; } else { Vis = P2; Bur = P1; }
-
-                            XYZ dirA = axis.CrossProduct(nA).Normalize(); if (dirA.DotProduct(Vis - Bur) < 0) dirA = -dirA;
-                            XYZ dirB = axis.CrossProduct(nB).Normalize(); if (dirB.DotProduct(Vis - Bur) < 0) dirB = -dirB;
-
-                            double dot = dirA.DotProduct(dirB);
-                            if (dot > 1.0) dot = 1.0; if (dot < -1.0) dot = -1.0;
-                            double sinAngle = Math.Sin(Math.Acos(dot));
-                            if (sinAngle < 0.01) sinAngle = 0.01;
-                            double gapSlant = gapFeet / sinAngle;
-
-                            // 步驟 2：垂直雷射刀切割 (V4.1.4 核心修正)
-                            if (joinType == JoinType.OuterMiter)
-                            {
-                                XYZ bisectorNormal = (nA + nB).Normalize();
-                                double offset = (gapFeet / 2.0) / Math.Max(0.01, Math.Sin(Math.Acos(dot) / 2.0));
-                                Plane planeA = Plane.CreateByNormalAndOrigin(bisectorNormal, Vis - dirA * offset);
-                                Plane planeB = Plane.CreateByNormalAndOrigin(bisectorNormal, Vis - dirB * offset);
-                                
-                                foreach (var r in refsA) ExecutePlaneCutV414(doc, r.ElementId, planeA);
-                                foreach (var r in refsB) ExecutePlaneCutV414(doc, r.ElementId, planeB);
-                            }
-                            else if (joinType == JoinType.OuterCover)
-                            {
-                                Plane planeB = Plane.CreateByNormalAndOrigin(nA, Vis - dirB * gapSlant);
-                                foreach (var r in refsB) ExecutePlaneCutV414(doc, r.ElementId, planeB);
-                            }
-                            else if (joinType == JoinType.InnerButt)
-                            {
-                                Plane planeA = Plane.CreateByNormalAndOrigin(nB, Vis);
-                                Plane planeB = Plane.CreateByNormalAndOrigin(nA, Vis - dirB * gapSlant);
-                                foreach (var r in refsA) ExecutePlaneCutV414(doc, r.ElementId, planeA);
-                                foreach (var r in refsB) ExecutePlaneCutV414(doc, r.ElementId, planeB);
-                            }
-                            else if (joinType == JoinType.InnerEmbed)
-                            {
-                                Plane planeB = Plane.CreateByNormalAndOrigin(nA, Vis - dirB * gapSlant);
-                                foreach (var r in refsB) ExecutePlaneCutV414(doc, r.ElementId, planeB);
-                            }
-
-                            EnableShapeHandles(doc, refsA.Concat(refsB));
-                            trans.Commit();
+                            // 6. 執行絕對垂直切割
+                            ExecuteVerticalCut(doc, partA.Id, planeA, origin);
+                            ExecuteVerticalCut(doc, partB.Id, planeB, origin);
                         }
-                        catch (Exception ex)
+                        else if (joinType == JoinType.OuterCover)
                         {
-                            trans.RollBack(); TaskDialog.Show("執行錯誤", $"操作失敗：{ex.Message}"); tg.RollBack(); return Result.Failed;
+                            // A 磚不切，B 磚退縮。切刀面 = A 磚外皮 (nA) 向 B 磚重心偏移 gapFeet
+                            XYZ centB = GetCentroid(partB);
+                            XYZ pB = origin - nA * gapFeet; 
+                            Plane planeB = Plane.CreateByNormalAndOrigin(nA, pB);
+                            ExecuteVerticalCut(doc, partB.Id, planeB, origin);
                         }
-                    }
-                    tg.Assimilate();
-                }
+                        else if (joinType == JoinType.InnerButt || joinType == JoinType.InnerEmbed)
+                        {
+                            // 陰角邏輯：A 磚貼齊 B 磚外皮，B 磚退縮 gapFeet
+                            Plane planeA = Plane.CreateByNormalAndOrigin(nB, origin);
+                            Plane planeB = Plane.CreateByNormalAndOrigin(nA, origin - nA * gapFeet);
+                            ExecuteVerticalCut(doc, partA.Id, planeA, origin);
+                            ExecuteVerticalCut(doc, partB.Id, planeB, origin);
+                        }
 
+                        EnableShapeHandles(doc, new List<Reference>{refA, refB});
+                        trans.Commit();
+                    }
+                    catch (Exception ex)
+                    {
+                        trans.RollBack(); TaskDialog.Show("幾何算圖錯誤", $"執行失敗：{ex.Message}"); return Result.Failed;
+                    }
+                }
                 return Result.Succeeded;
             }
             catch (Autodesk.Revit.Exceptions.OperationCanceledException) { return Result.Cancelled; }
-            catch (Exception ex) { TaskDialog.Show("致命錯誤", ex.Message); return Result.Failed; }
+            catch (Exception ex) { TaskDialog.Show("致命例外", ex.Message); return Result.Failed; }
         }
 
-        private void SynchronizeHostJoinOrder(Document doc, ElementId partIdA, ElementId partIdB, JoinType joinType)
+        private void ExecuteVerticalCut(Document doc, ElementId partId, Plane plane, XYZ cornerPoint)
         {
             try
             {
-                Wall wallA = GetHostWall(doc, partIdA);
-                Wall wallB = GetHostWall(doc, partIdB);
-                if (wallA == null || wallB == null) return;
-
-                if (joinType == JoinType.OuterCover)
-                {
-                    if (JoinGeometryUtils.AreElementsJoined(doc, wallA, wallB))
-                    {
-                        if (JoinGeometryUtils.IsCuttingElementInJoin(doc, wallB, wallA))
-                        {
-                            JoinGeometryUtils.SwitchJoinOrder(doc, wallA, wallB);
-                        }
-                    }
-                }
-                else if (joinType == JoinType.OuterMiter || joinType == JoinType.InnerButt)
-                {
-                    LocationCurve lcA = wallA.Location as LocationCurve;
-                    LocationCurve lcB = wallB.Location as LocationCurve;
-                    if (lcA != null && lcB != null)
-                    {
-                        int endA = GetClosestEnd(lcA.Curve, lcB.Curve);
-                        int endB = GetClosestEnd(lcB.Curve, lcA.Curve);
-                        lcA.set_JoinType(endA, Autodesk.Revit.DB.JoinType.Miter);
-                        lcB.set_JoinType(endB, Autodesk.Revit.DB.JoinType.Miter);
-                    }
-                }
-            }
-            catch { }
-        }
-
-        private Wall GetHostWall(Document doc, ElementId partId)
-        {
-            Part part = doc.GetElement(partId) as Part;
-            if (part == null) return null;
-            var linkIds = part.GetSourceElementIds();
-            if (linkIds == null || linkIds.Count == 0) return null;
-            return doc.GetElement(linkIds.First().HostElementId) as Wall;
-        }
-
-        private int GetClosestEnd(Curve c1, Curve c2)
-        {
-            double d00 = c1.GetEndPoint(0).DistanceTo(c2.GetEndPoint(0));
-            double d01 = c1.GetEndPoint(0).DistanceTo(c2.GetEndPoint(1));
-            double d10 = c1.GetEndPoint(1).DistanceTo(c2.GetEndPoint(0));
-            double d11 = c1.GetEndPoint(1).DistanceTo(c2.GetEndPoint(1));
-            double min = new[] { d00, d01, d10, d11 }.Min();
-            return (min == d00 || min == d01) ? 0 : 1;
-        }
-
-        // [V4.1.4] 垂直雷射刀核心函數
-        private void ExecutePlaneCutV414(Document doc, ElementId partId, Plane plane)
-        {
-            try 
-            {
-                // 1. 建立垂直方向的切割線 (垂直雷射刀)
-                XYZ verticalDir = XYZ.BasisZ; 
+                // 強制鎖死垂直切線，避免切出楔形 (BasisZ Knife)
+                XYZ vDir = XYZ.BasisZ;
+                Line cutLine = Line.CreateBound(plane.Origin - vDir * 50, plane.Origin + vDir * 50);
                 
-                // 2. 定義線段長度 (500呎確保絕對貫穿)
-                Line line = Line.CreateBound(plane.Origin - verticalDir * 100, plane.Origin + verticalDir * 100);
-                List<Curve> curves = new List<Curve>() { line };
-
-                // 3. 建立基於該平面的 SketchPlane
                 SketchPlane sp = SketchPlane.Create(doc, plane);
-                
-                // 4. 執行切割
-                PartUtils.DivideParts(doc, new List<ElementId> { partId }, new List<ElementId>(), curves, sp.Id);
+                PartUtils.DivideParts(doc, new List<ElementId> { partId }, new List<ElementId>(), new List<Curve> { cutLine }, sp.Id);
                 doc.Regenerate();
 
-                // 5. 智慧清理 (刪除靠近轉角中心的延伸段/廢料)
+                // 智慧清理：刪除靠近外角點的虛脫廢料
                 var subParts = PartUtils.GetAssociatedParts(doc, partId, false, true);
-                if (subParts.Count > 1) 
+                if (subParts.Count > 1)
                 {
-                    ElementId toDelete = subParts.OrderBy(s => GetCentroid(doc.GetElement(s)).DistanceTo(plane.Origin)).First();
-                    doc.Delete(toDelete);
+                    ElementId waste = subParts.OrderBy(id => GetCentroid(doc.GetElement(id)).DistanceTo(cornerPoint)).First();
+                    doc.Delete(waste);
                 }
-            } 
-            catch { }
+            }
+            catch (Autodesk.Revit.Exceptions.ArgumentException) { }
+        }
+
+        private XYZ GetOuterVerticalFaceNormal(Solid s)
+        {
+            var verticalFaces = s.Faces.OfType<PlanarFace>()
+                .Where(f => Math.Abs(f.FaceNormal.Z) < 0.01) // 過濾垂直面
+                .OrderByDescending(f => f.Area)
+                .ToList();
+            if (verticalFaces.Count == 0) return XYZ.BasisX;
+            return verticalFaces.First().FaceNormal.Normalize();
+        }
+
+        private XYZ GetTrueCornerOrigin(Part pA, Part pB, XYZ nA, XYZ nB)
+        {
+            Solid sA = GetSolid(pA); Solid sB = GetSolid(pB);
+            XYZ originA = sA.Faces.OfType<PlanarFace>().OrderByDescending(f => f.Area).First().Origin;
+            XYZ originB = sB.Faces.OfType<PlanarFace>().OrderByDescending(f => f.Area).First().Origin;
+
+            double z = (GetCentroid(pA).Z + GetCentroid(pB).Z) / 2.0;
+
+            // 克拉瑪法則 (Cramer's Rule) 求 X,Y 交點
+            double d1 = nA.DotProduct(originA);
+            double d2 = nB.DotProduct(originB);
+            double det = nA.X * nB.Y - nA.Y * nB.X;
+
+            if (Math.Abs(det) > 1e-6)
+            {
+                double x = (d1 * nB.Y - d2 * nA.Y) / det;
+                double y = (nA.X * d2 - nB.X * d1) / det;
+                return new XYZ(x, y, z);
+            }
+            return (GetCentroid(pA) + GetCentroid(pB)) / 2.0; 
         }
 
         private void EnableShapeHandles(Document doc, IEnumerable<Reference> refs)
@@ -332,18 +266,8 @@ namespace TilePlanner.Commands
             }
         }
 
+        private Solid GetSolid(Part p) => p.get_Geometry(new Options { ComputeReferences = true, DetailLevel = ViewDetailLevel.Fine }).OfType<Solid>().FirstOrDefault(s => s.Volume > 0);
         private XYZ GetCentroid(Element e) { BoundingBoxXYZ b = e.get_BoundingBox(null); return (b.Min + b.Max) / 2.0; }
-        private Solid GetSolid(Part p) { return p.get_Geometry(new Options { ComputeReferences = true, DetailLevel = ViewDetailLevel.Fine }).OfType<Solid>().FirstOrDefault(s => s.Volume > 0); }
-        private XYZ GetLargestFaceNormal(Solid s) => s.Faces.OfType<PlanarFace>().OrderByDescending(f => f.Area).FirstOrDefault()?.FaceNormal ?? XYZ.BasisZ;
-        private List<PlanarFace> GetSideFaces(Solid s, XYZ axis) => s.Faces.OfType<PlanarFace>().Where(f => Math.Abs(f.FaceNormal.DotProduct(axis)) < 0.1).OrderByDescending(f => f.Area).Take(2).ToList();
-        private XYZ IntersectThreePlanes(PlanarFace f1, PlanarFace f2, Plane p3) {
-            XYZ n1 = f1.FaceNormal; double d1 = n1.DotProduct(f1.Origin);
-            XYZ n2 = f2.FaceNormal; double d2 = n2.DotProduct(f2.Origin);
-            XYZ n3 = p3.Normal; double d3 = n3.DotProduct(p3.Origin);
-            double det = n1.DotProduct(n2.CrossProduct(n3));
-            if (Math.Abs(det) < 1e-6) return null;
-            return (d1 * n2.CrossProduct(n3) + d2 * n3.CrossProduct(n1) + d3 * n1.CrossProduct(n2)) / det;
-        }
     }
 
     public class LocalWarningSwallower : IFailuresPreprocessor
@@ -351,23 +275,11 @@ namespace TilePlanner.Commands
         public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
         {
             var failures = failuresAccessor.GetFailureMessages();
-            if (failures.Count == 0) return FailureProcessingResult.Continue;
-            bool resolvedError = false;
             foreach (var f in failures)
             {
                 if (f.GetSeverity() == FailureSeverity.Warning) failuresAccessor.DeleteWarning(f);
-                else if (f.GetSeverity() == FailureSeverity.Error)
-                {
-                    try 
-                    {
-                        var method = failuresAccessor.GetType().GetMethod("CanResolveErrors");
-                        bool canResolve = (method != null) ? (bool)method.Invoke(failuresAccessor, null) : false;
-                        if (canResolve) { failuresAccessor.ResolveFailure(f); resolvedError = true; }
-                    }
-                    catch { }
-                }
             }
-            return resolvedError ? FailureProcessingResult.ProceedWithCommit : FailureProcessingResult.Continue;
+            return FailureProcessingResult.Continue;
         }
     }
 

@@ -9,8 +9,8 @@ using Autodesk.Revit.UI.Selection;
 namespace TilePlanner.Commands
 {
     // ==========================================
-    // [V4.1.3] 技術修訂版 - 零件延伸與平面分割技術
-    // 邏輯：零件物理延伸 + 幾何平面交會切割
+    // [V4.1.4] 技術修訂版 - 垂直雷射刀 + 零件延伸優化
+    // 核心技術：強制垂直切割路徑 (BasisZ) + 自動廢料清理
     // ==========================================
     public enum JoinType
     {
@@ -30,7 +30,7 @@ namespace TilePlanner.Commands
 
         public CornerSettingsDialog()
         {
-            this.Title = "TilePlanner - 轉角接合參數設定 (V4.1.3)";
+            this.Title = "TilePlanner - 轉角接合參數設定 (V4.1.4)";
             this.Width = 380; this.Height = 280;
             this.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
             this.ResizeMode = System.Windows.ResizeMode.NoResize; this.Topmost = true;
@@ -119,11 +119,11 @@ namespace TilePlanner.Commands
                 IList<Reference> refsB = uidoc.Selection.PickObjects(ObjectType.Element, new PartOnlyFilter(), promptB);
                 if (refsB == null || refsB.Count == 0) return Result.Cancelled;
 
-                using (TransactionGroup tg = new TransactionGroup(doc, "手動轉角接合 V4.1.3"))
+                using (TransactionGroup tg = new TransactionGroup(doc, "手動轉角接合 V4.1.4"))
                 {
                     tg.Start();
 
-                    using (Transaction trans = new Transaction(doc, "幾何延伸與切割執行"))
+                    using (Transaction trans = new Transaction(doc, "垂直雷射刀執行"))
                     {
                         trans.Start();
                         var options = trans.GetFailureHandlingOptions();
@@ -132,10 +132,8 @@ namespace TilePlanner.Commands
 
                         try
                         {
-                            // 步驟 1：主體接合順序同步與零件預延伸
+                            // 步驟 1：主體同步與零件物理延伸 (優化)
                             SynchronizeHostJoinOrder(doc, refsA[0].ElementId, refsB[0].ElementId, joinType);
-                            
-                            // 強置模型再生以更新零件幾何
                             doc.Regenerate(); 
 
                             Part partA = doc.GetElement(refsA[0].ElementId) as Part;
@@ -149,7 +147,6 @@ namespace TilePlanner.Commands
 
                             var facesA = GetSideFaces(solidA, axis);
                             var facesB = GetSideFaces(solidB, axis);
-
                             if (facesA.Count < 2 || facesB.Count < 2) throw new Exception("磁磚幾何分析失敗。");
 
                             XYZ origin = (solidA.ComputeCentroid() + solidB.ComputeCentroid()) / 2.0;
@@ -185,7 +182,7 @@ namespace TilePlanner.Commands
                             if (sinAngle < 0.01) sinAngle = 0.01;
                             double gapSlant = gapFeet / sinAngle;
 
-                            // 步驟 2 & 3：向量化平面切割
+                            // 步驟 2：垂直雷射刀切割 (V4.1.4 核心修正)
                             if (joinType == JoinType.OuterMiter)
                             {
                                 XYZ bisectorNormal = (nA + nB).Normalize();
@@ -193,30 +190,28 @@ namespace TilePlanner.Commands
                                 Plane planeA = Plane.CreateByNormalAndOrigin(bisectorNormal, Vis - dirA * offset);
                                 Plane planeB = Plane.CreateByNormalAndOrigin(bisectorNormal, Vis - dirB * offset);
                                 
-                                foreach (var r in refsA) ExecutePlaneCut(doc, r.ElementId, planeA, Vis, axis);
-                                foreach (var r in refsB) ExecutePlaneCut(doc, r.ElementId, planeB, Vis, axis);
+                                foreach (var r in refsA) ExecutePlaneCutV414(doc, r.ElementId, planeA);
+                                foreach (var r in refsB) ExecutePlaneCutV414(doc, r.ElementId, planeB);
                             }
                             else if (joinType == JoinType.OuterCover)
                             {
                                 Plane planeB = Plane.CreateByNormalAndOrigin(nA, Vis - dirB * gapSlant);
-                                foreach (var r in refsB) ExecutePlaneCut(doc, r.ElementId, planeB, Vis, axis);
+                                foreach (var r in refsB) ExecutePlaneCutV414(doc, r.ElementId, planeB);
                             }
                             else if (joinType == JoinType.InnerButt)
                             {
                                 Plane planeA = Plane.CreateByNormalAndOrigin(nB, Vis);
                                 Plane planeB = Plane.CreateByNormalAndOrigin(nA, Vis - dirB * gapSlant);
-                                foreach (var r in refsA) ExecutePlaneCut(doc, r.ElementId, planeA, Bur, axis);
-                                foreach (var r in refsB) ExecutePlaneCut(doc, r.ElementId, planeB, Bur, axis);
+                                foreach (var r in refsA) ExecutePlaneCutV414(doc, r.ElementId, planeA);
+                                foreach (var r in refsB) ExecutePlaneCutV414(doc, r.ElementId, planeB);
                             }
                             else if (joinType == JoinType.InnerEmbed)
                             {
                                 Plane planeB = Plane.CreateByNormalAndOrigin(nA, Vis - dirB * gapSlant);
-                                foreach (var r in refsB) ExecutePlaneCut(doc, r.ElementId, planeB, Bur, axis);
+                                foreach (var r in refsB) ExecutePlaneCutV414(doc, r.ElementId, planeB);
                             }
 
-                            // 最終參數同步：開放造型控點
                             EnableShapeHandles(doc, refsA.Concat(refsB));
-
                             trans.Commit();
                         }
                         catch (Exception ex)
@@ -286,22 +281,30 @@ namespace TilePlanner.Commands
             return (min == d00 || min == d01) ? 0 : 1;
         }
 
-        private const double DivisionVectorLength = 500.0;
-        private void ExecutePlaneCut(Document doc, ElementId partId, Plane plane, XYZ targetForDelete, XYZ axis)
+        // [V4.1.4] 垂直雷射刀核心函數
+        private void ExecutePlaneCutV414(Document doc, ElementId partId, Plane plane)
         {
             try 
             {
-                SketchPlane sp = SketchPlane.Create(doc, plane);
-                XYZ v = plane.Normal.CrossProduct(axis).Normalize();
-                Line line = Line.CreateBound(plane.Origin - v * 100, plane.Origin + v * 100);
+                // 1. 建立垂直方向的切割線 (垂直雷射刀)
+                XYZ verticalDir = XYZ.BasisZ; 
                 
-                PartUtils.DivideParts(doc, new List<ElementId> { partId }, new List<ElementId>(), new List<Curve> { line }, sp.Id);
-                doc.Regenerate(); 
+                // 2. 定義線段長度 (500呎確保絕對貫穿)
+                Line line = Line.CreateBound(plane.Origin - verticalDir * 100, plane.Origin + verticalDir * 100);
+                List<Curve> curves = new List<Curve>() { line };
 
+                // 3. 建立基於該平面的 SketchPlane
+                SketchPlane sp = SketchPlane.Create(doc, plane);
+                
+                // 4. 執行切割
+                PartUtils.DivideParts(doc, new List<ElementId> { partId }, new List<ElementId>(), curves, sp.Id);
+                doc.Regenerate();
+
+                // 5. 智慧清理 (刪除靠近轉角中心的延伸段/廢料)
                 var subParts = PartUtils.GetAssociatedParts(doc, partId, false, true);
                 if (subParts.Count > 1) 
                 {
-                    ElementId toDelete = subParts.OrderBy(s => GetCentroid(doc.GetElement(s)).DistanceTo(targetForDelete)).First();
+                    ElementId toDelete = subParts.OrderBy(s => GetCentroid(doc.GetElement(s)).DistanceTo(plane.Origin)).First();
                     doc.Delete(toDelete);
                 }
             } 

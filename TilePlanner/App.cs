@@ -42,14 +42,14 @@ namespace TilePlanner
                 panel.AddItem(togglePartsBtnData);
 
                 // ==========================================
-                // [V4.1.3] 手動轉角接合 - 零件延伸與平面分割版
+                // [V4.1.4] 手動轉角接合 - 垂直雷射刀修復版
                 // ==========================================
                 PushButtonData manualJoinBtnData = new PushButtonData(
                     "ManualCornerJoin", 
-                    "手動轉角接合\n(V4.1.3)", 
+                    "手動轉角接合\n(V4.1.4)", 
                     assemblyPath, 
                     "TilePlanner.Commands.ManualCornerJoinCommand");
-                manualJoinBtnData.ToolTip = "[V4.1.3 零件延伸/平面切割] 透過零件物理延伸與無限平面切割技術，確保轉角接合之幾何穩定性。";
+                manualJoinBtnData.ToolTip = "[V4.1.4 垂直雷射刀] 將切割軸線強制修正為垂直向 (BasisZ)，徹底解決水平碎屑導致的零件刪除錯誤。";
                 panel.AddItem(manualJoinBtnData);
 
                 return Result.Succeeded;

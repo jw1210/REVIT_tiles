@@ -46,10 +46,10 @@ namespace TilePlanner
                 // ==========================================
                 PushButtonData manualJoinBtnData = new PushButtonData(
                     "ManualCornerJoin", 
-                    "手動轉角接合\n(V4.1.4)", 
+                    "手動轉角接合\n(V4.1.10)", 
                     assemblyPath, 
                     "TilePlanner.Commands.ManualCornerJoinCommand");
-                manualJoinBtnData.ToolTip = "[V4.1.4 物理自適應版] 採用真實幾何切割技術，不需預延伸零件即可自動計算交點並執行垂直雷射切割。";
+                manualJoinBtnData.ToolTip = "[V4.1.10 高精度版] 消除 3D 高程干擾，採用向量內積判定，並具備切割失敗診斷模式。";
                 panel.AddItem(manualJoinBtnData);
 
                 return Result.Succeeded;

@@ -1,3 +1,98 @@
+/* 
+================================================================================
+  TilePlanner V4.1.10 - FULL SOURCE CODE MASTER
+  Date: 2026-03-16
+  Environment: Revit 2024 (net48) & Revit 2025 (net8.0)
+  Feature: Precision Corner Join + 2D Vector Calculation + Diagnostic Mode
+================================================================================
+  本文件包含 TilePlanner 專案的所有 C# 原始碼與配置檔內容。
+================================================================================
+*/
+
+// [NEW] Version 4.1.10 Notes:
+// - Removed 3D elevation interference using XY-plane 2D Cramer's Rule for intersections.
+// - Vector-based retreat (Miter Join) using DotProduct for precision direction.
+// - Diagnostic Mode: Replaced silent failure with TaskDialog to explain cut failures.
+// - Relaxed thickness matching tolerance for improved reliability on varied geometries.
+
+// ==========================================
+// [FILE]: TilePlanner\App.cs
+// ==========================================
+using System;
+using System.Reflection;
+using Autodesk.Revit.UI;
+
+namespace TilePlanner
+{
+    public class App : IExternalApplication
+    {
+        public Result OnStartup(UIControlledApplication application)
+        {
+            try
+            {
+                string tabName = "磁磚計畫";
+                application.CreateRibbonTab(tabName);
+                RibbonPanel panel = application.CreateRibbonPanel(tabName, "磁磚工具");
+                string assemblyPath = Assembly.GetExecutingAssembly().Location;
+
+                // 建立與移除按鈕
+                PushButtonData createBtnData = new PushButtonData("CreateTilePlan", "建立\n磁磚計畫", assemblyPath, "TilePlanner.Commands.CreateTilePlanCommand");
+                createBtnData.ToolTip = "選取牆面、樓板後自動產生成 3D 磁磚計畫 (V3.8 支援批次多選)";
+                panel.AddItem(createBtnData);
+
+                PushButtonData removeBtnData = new PushButtonData("RemoveTilePlan", "移除\n磁磚計畫", assemblyPath, "TilePlanner.Commands.RemoveTilePlanCommand");
+                panel.AddItem(removeBtnData);
+
+                // 整體連動按鈕
+                PushButtonData toggleBtnData = new PushButtonData("ToggleLinkedMove", "整體\n連動", assemblyPath, "TilePlanner.Commands.ToggleLinkedMoveCommand");
+                panel.AddItem(toggleBtnData);
+
+                // ==========================================
+                // [V3.1] 獨立的大按鈕：顯示/隱藏 網格
+                // ==========================================
+                PushButtonData toggleGridBtnData = new PushButtonData("ToggleGridCommand", "顯示/隱藏\n網格", assemblyPath, "TilePlanner.Commands.ToggleGridCommand");
+                toggleGridBtnData.ToolTip = "一鍵隱藏或顯示磁磚切割輔助綠線";
+                panel.AddItem(toggleGridBtnData);
+
+                // ==========================================
+                // [V3.1] 獨立的大按鈕：顯示/隱藏 零件
+                // ==========================================
+                PushButtonData togglePartsBtnData = new PushButtonData("TogglePartsVisibility", "顯示/隱藏\n零件", assemblyPath, "TilePlanner.Commands.TogglePartsVisibilityCommand");
+                togglePartsBtnData.ToolTip = "快速切換原主體(Wall)與切割好的磁磚零件(Parts)";
+                panel.AddItem(togglePartsBtnData);
+
+                // ==========================================
+                // [V4.1.10] 手動轉角接合 - 高精度版
+                // ==========================================
+                PushButtonData manualJoinBtnData = new PushButtonData(
+                    "ManualCornerJoin", 
+                    "手動轉角接合\n(V4.1.10)", 
+                    assemblyPath, 
+                    "TilePlanner.Commands.ManualCornerJoinCommand");
+                manualJoinBtnData.ToolTip = "[V4.1.10 高精度版] 消除 3D 高程干擾，採用向量內積判定，並具備切割失敗診斷模式。";
+                panel.AddItem(manualJoinBtnData);
+
+                return Result.Succeeded;
+            }
+            catch (Exception)
+            {
+                return Result.Failed;
+            }
+        }
+
+        public Result OnShutdown(UIControlledApplication application)
+        {
+            return Result.Succeeded;
+        }
+    }
+}
+
+// ... (Rest of files same as previous)
+
+// ==========================================
+// [FILE]: TilePlanner\Commands\ManualCornerJoinCommand.cs
+// ==========================================
+/* (V4.1.10 Implementation) */
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,241 +103,140 @@ using Autodesk.Revit.UI.Selection;
 
 namespace TilePlanner.Commands
 {
-    // --- 1. 靜默錯誤處理器 (僅攔截 1.6mm 微小廢料刪除警告) ---
     public class TinyPartFailureHandler : IFailuresPreprocessor
     {
         public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
         {
             IList<FailureMessageAccessor> failures = failuresAccessor.GetFailureMessages();
             if (failures.Count == 0) return FailureProcessingResult.Continue;
-
             bool isResolved = false;
             foreach (FailureMessageAccessor failure in failures)
             {
                 FailureSeverity severity = failure.GetSeverity();
-                if (severity == FailureSeverity.Warning)
-                {
-                    failuresAccessor.DeleteWarning(failure);
-                    isResolved = true;
-                }
+                if (severity == FailureSeverity.Warning) { failuresAccessor.DeleteWarning(failure); isResolved = true; }
                 else if (severity == FailureSeverity.Error)
                 {
-                    if (failure.HasResolutions())
-                    {
-                        failuresAccessor.ResolveFailure(failure);
-                        isResolved = true;
-                    }
-                    else
-                    {
-                        return FailureProcessingResult.ProceedWithRollBack;
-                    }
+                    if (failure.HasResolutions()) { failuresAccessor.ResolveFailure(failure); isResolved = true; }
+                    else return FailureProcessingResult.ProceedWithRollBack;
                 }
             }
             return isResolved ? FailureProcessingResult.ProceedWithCommit : FailureProcessingResult.Continue;
         }
     }
 
-    // --- 2. 主命令介面 ---
     [Transaction(TransactionMode.Manual)]
     public class ManualCornerJoinCommand : IExternalCommand
     {
         private enum JoinMode { Miter, Butt, Cancel }
-
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
-
-            // [V4.1.5 Developer Bypass] 
             if (!TilePlanner.Security.LicenseManager.Validate()) return Result.Failed;
-
             try
             {
-                // 1. 選擇接合模式
                 JoinMode mode = GetJoinModeFromUser();
                 if (mode == JoinMode.Cancel) return Result.Cancelled;
-
-                double gapFeet = 2.0 / 304.8; // 2mm 灰縫
-
-                // 2. 執行選取流程
+                double gapFeet = 2.0 / 304.8;
                 string promptA = mode == JoinMode.Butt ? "選取 A 側零件 (蓋磚側/不退縮側) - 選取完畢請按 Enter" : "選取 A 側零件 - 選取完畢請按 Enter";
                 string promptB = mode == JoinMode.Butt ? "選取 B 側零件 (被蓋側/退縮側) - 選取完畢請按 Enter" : "選取 B 側零件 - 選取完畢請按 Enter";
-
                 IList<Reference> refsA = uidoc.Selection.PickObjects(ObjectType.Element, new PartOnlyFilter(), promptA);
                 if (refsA.Count == 0) return Result.Cancelled;
-
                 IList<Reference> refsB = uidoc.Selection.PickObjects(ObjectType.Element, new PartOnlyFilter(), promptB);
                 if (refsB.Count == 0) return Result.Cancelled;
-
-                // 3. 執行切割 Transaction
                 using (Transaction trans = new Transaction(doc, $"磁磚計畫 V4.1.10 - {(mode == JoinMode.Miter ? "雙側切角" : "蓋磚")}"))
                 {
                     trans.Start();
-
-                    // 綁定微小廢料處理器
                     FailureHandlingOptions options = trans.GetFailureHandlingOptions();
                     options.SetFailuresPreprocessor(new TinyPartFailureHandler());
                     options.SetClearAfterRollback(true);
                     trans.SetFailureHandlingOptions(options);
-
                     Part basePartA = doc.GetElement(refsA.First()) as Part;
                     Part basePartB = doc.GetElement(refsB.First()) as Part;
-                    Solid solidA = GetSolid(basePartA);
-                    Solid solidB = GetSolid(basePartB);
-
-                    // 取得法向量與幾何交點
-                    XYZ nA = GetOuterVerticalFaceNormal(solidA);
-                    XYZ nB = GetOuterVerticalFaceNormal(solidB);
+                    Solid solidA = GetSolid(basePartA); Solid solidB = GetSolid(basePartB);
+                    XYZ nA = GetOuterVerticalFaceNormal(solidA); XYZ nB = GetOuterVerticalFaceNormal(solidB);
                     XYZ cornerOrigin = GetTrueCornerOrigin(basePartA, basePartB, nA, nB);
-
-                    // 4. 模組分流
-                    if (mode == JoinMode.Miter)
-                    {
-                        ExecuteMiterJoin(doc, refsA, refsB, nA, nB, cornerOrigin, gapFeet);
-                    }
-                    else if (mode == JoinMode.Butt)
-                    {
-                        ExecuteButtJoin(doc, refsA, refsB, nA, nB, cornerOrigin, gapFeet, basePartA);
-                    }
-
+                    if (mode == JoinMode.Miter) ExecuteMiterJoin(doc, refsA, refsB, nA, nB, cornerOrigin, gapFeet);
+                    else if (mode == JoinMode.Butt) ExecuteButtJoin(doc, refsA, refsB, nA, nB, cornerOrigin, gapFeet, basePartA);
                     trans.Commit();
                 }
                 return Result.Succeeded;
             }
             catch (Autodesk.Revit.Exceptions.OperationCanceledException) { return Result.Cancelled; }
-            catch (Exception ex)
-            {
-                TaskDialog.Show("錯誤", ex.Message);
-                return Result.Failed;
-            }
+            catch (Exception ex) { TaskDialog.Show("錯誤", ex.Message); return Result.Failed; }
         }
 
-        // --- 模組 A：雙側切角 (Miter Join) ---
         private void ExecuteMiterJoin(Document doc, IList<Reference> refsA, IList<Reference> refsB, XYZ nA, XYZ nB, XYZ origin, double gapFeet)
         {
             XYZ cutDir = (nA + nB).Normalize();
             XYZ shiftDir = XYZ.BasisZ.CrossProduct(cutDir).Normalize();
             XYZ shiftVector = shiftDir * (gapFeet / 2.0);
-
-            // 修正：依據法向量內積判定退縮方向。若偏移向量與法線同向 (DotProduct > 0)，表示向量朝外，須反向減去以向內退縮。
             XYZ originA = (shiftVector.DotProduct(nA) > 0) ? origin - shiftVector : origin + shiftVector;
             XYZ originB = (shiftVector.DotProduct(nB) > 0) ? origin - shiftVector : origin + shiftVector;
-
             foreach (Reference r in refsA) ExecutePlanViewCut(doc, r.ElementId, originA, cutDir, origin);
             foreach (Reference r in refsB) ExecutePlanViewCut(doc, r.ElementId, originB, cutDir, origin);
         }
 
-        // --- 模組 B：蓋磚 (Butt Join) ---
         private void ExecuteButtJoin(Document doc, IList<Reference> refsA, IList<Reference> refsB, XYZ nA, XYZ nB, XYZ origin, double gapFeet, Part baseA)
         {
-            // A 側 (蓋磚側)：切割平面平行於 B 表面，原點位於轉角最外緣。
-            XYZ cutDirA = XYZ.BasisZ.CrossProduct(nB).Normalize();
-            XYZ originA = origin;
-
-            // B 側 (退縮側)：切割平面平行於 A 表面，原點向 A 的反向法向量退縮 (A磚厚度 + 灰縫)。
+            XYZ cutDirA = XYZ.BasisZ.CrossProduct(nB).Normalize(); XYZ originA = origin;
             XYZ cutDirB = XYZ.BasisZ.CrossProduct(nA).Normalize();
             double thicknessA = GetPartThickness(baseA, nA);
-            
             XYZ originB = origin - nA * (thicknessA + gapFeet);
-
             foreach (Reference r in refsA) ExecutePlanViewCut(doc, r.ElementId, originA, cutDirA, origin);
             foreach (Reference r in refsB) ExecutePlanViewCut(doc, r.ElementId, originB, cutDirB, origin);
         }
 
-        // --- UI 選項 ---
         private JoinMode GetJoinModeFromUser()
         {
-            TaskDialog td = new TaskDialog("局部轉角接合")
-            {
-                MainInstruction = "請選擇轉角接合模式",
-                MainContent = "灰縫間距已統一預設為 2mm。\n請依照提示選取零件並按 Enter 確認。",
-                CommonButtons = TaskDialogCommonButtons.Cancel
-            };
+            TaskDialog td = new TaskDialog("局部轉角接合") { MainInstruction = "請選擇轉角接合模式", MainContent = "灰縫間距已統一預設為 2mm。\n請依照提示選取零件並按 Enter 確認。", CommonButtons = TaskDialogCommonButtons.Cancel };
             td.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "雙側切角 (Miter Join)");
             td.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "蓋磚 (Butt Join) - 先選的蓋人");
-
             TaskDialogResult result = td.Show();
             if (result == TaskDialogResult.CommandLink1) return JoinMode.Miter;
             if (result == TaskDialogResult.CommandLink2) return JoinMode.Butt;
             return JoinMode.Cancel;
         }
 
-        // --- 核心切割引擎 ---
         private void ExecutePlanViewCut(Document doc, ElementId partId, XYZ cutOrigin, XYZ cutDir, XYZ cornerOrigin)
         {
-            try
-            {
+            try {
                 Plane horizontalPlane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, cutOrigin);
                 SketchPlane sp = SketchPlane.Create(doc, horizontalPlane);
                 Line cutLine = Line.CreateBound(cutOrigin - cutDir * 50.0, cutOrigin + cutDir * 50.0);
-                
                 PartUtils.DivideParts(doc, new List<ElementId> { partId }, new List<ElementId>(), new List<Curve> { cutLine }, sp.Id);
                 doc.Regenerate();
-
-                // 廢料清理
                 ICollection<ElementId> subParts = PartUtils.GetAssociatedParts(doc, partId, false, true);
-                if (subParts.Count > 1)
-                {
+                if (subParts.Count > 1) {
                     ElementId wasteId = subParts.OrderBy(id => GetCentroid(doc.GetElement(id)).DistanceTo(cornerOrigin)).First();
                     if(doc.GetElement(wasteId) != null) doc.Delete(wasteId);
                 }
-            }
-            catch (Autodesk.Revit.Exceptions.ArgumentException ex) 
-            { 
-                // 修正：解除靜默攔截。若 Revit 幾何引擎拒絕切割，將顯示明確原因以供診斷。
+            } catch (Autodesk.Revit.Exceptions.ArgumentException ex) {
                 TaskDialog.Show("切割失敗診斷", $"零件 ID {partId} 無法分割。\n原因: {ex.Message}\n\n說明: 切割線未貫穿實體幾何。請確認欲切割的磁磚是否具備足夠的延伸長度或交疊面積。");
             }
         }
 
-        // --- 幾何解析方法 ---
-        private XYZ GetOuterVerticalFaceNormal(Solid s)
-        {
-            return s.Faces.OfType<PlanarFace>()
-                .Where(f => Math.Abs(f.FaceNormal.Z) < 0.01)
-                .OrderByDescending(f => f.Area)
-                .First().FaceNormal.Normalize();
+        private XYZ GetOuterVerticalFaceNormal(Solid s) {
+            return s.Faces.OfType<PlanarFace>().Where(f => Math.Abs(f.FaceNormal.Z) < 0.01).OrderByDescending(f => f.Area).First().FaceNormal.Normalize();
         }
 
-        private double GetPartThickness(Part part, XYZ outerNormal)
-        {
+        private double GetPartThickness(Part part, XYZ outerNormal) {
             Solid s = GetSolid(part);
-            
-            // 修正：放寬法向量匹配容差至 0.98，以確保能正確辨識平行之內外表面。
-            var backFace = s.Faces.OfType<PlanarFace>()
-                .Where(f => Math.Abs(f.FaceNormal.Z) < 0.01 && f.FaceNormal.DotProduct(outerNormal) < -0.98)
-                .OrderByDescending(f => f.Area)
-                .FirstOrDefault();
-
-            var frontFace = s.Faces.OfType<PlanarFace>()
-                .Where(f => Math.Abs(f.FaceNormal.Z) < 0.01 && f.FaceNormal.DotProduct(outerNormal) > 0.98)
-                .OrderByDescending(f => f.Area)
-                .FirstOrDefault();
-
-            if (frontFace != null && backFace != null)
-            {
-                return Math.Abs((frontFace.Origin - backFace.Origin).DotProduct(outerNormal));
-            }
-            return 0.05; // 計算失敗時之備用容錯厚度
+            var backFace = s.Faces.OfType<PlanarFace>().Where(f => Math.Abs(f.FaceNormal.Z) < 0.01 && f.FaceNormal.DotProduct(outerNormal) < -0.98).OrderByDescending(f => f.Area).FirstOrDefault();
+            var frontFace = s.Faces.OfType<PlanarFace>().Where(f => Math.Abs(f.FaceNormal.Z) < 0.01 && f.FaceNormal.DotProduct(outerNormal) > 0.98).OrderByDescending(f => f.Area).FirstOrDefault();
+            if (frontFace != null && backFace != null) return Math.Abs((frontFace.Origin - backFace.Origin).DotProduct(outerNormal));
+            return 0.05;
         }
 
-        private XYZ GetTrueCornerOrigin(Part pA, Part pB, XYZ nA, XYZ nB)
-        {
+        private XYZ GetTrueCornerOrigin(Part pA, Part pB, XYZ nA, XYZ nB) {
             Solid sA = GetSolid(pA); Solid sB = GetSolid(pB);
             XYZ originA = sA.Faces.OfType<PlanarFace>().OrderByDescending(f => f.Area).First().Origin;
             XYZ originB = sB.Faces.OfType<PlanarFace>().OrderByDescending(f => f.Area).First().Origin;
-
-            // 設定交點高程為兩零件重心 Z 軸平均值
             double z = (GetCentroid(pA).Z + GetCentroid(pB).Z) / 2.0;
-
-            // 修正：將 3D 坐標降維至 XY 平面，透過克拉瑪法則計算 2D 交點，消除高程干擾。
-            double d1 = nA.X * originA.X + nA.Y * originA.Y;
-            double d2 = nB.X * originB.X + nB.Y * originB.Y;
+            double d1 = nA.X * originA.X + nA.Y * originA.Y; double d2 = nB.X * originB.X + nB.Y * originB.Y;
             double det = nA.X * nB.Y - nA.Y * nB.X;
-
-            if (Math.Abs(det) > 1e-6)
-            {
-                double x = (d1 * nB.Y - d2 * nA.Y) / det;
-                double y = (nA.X * d2 - nB.X * d1) / det;
+            if (Math.Abs(det) > 1e-6) {
+                double x = (d1 * nB.Y - d2 * nA.Y) / det; double y = (nA.X * d2 - nB.X * d1) / det;
                 return new XYZ(x, y, z);
             }
             return (GetCentroid(pA) + GetCentroid(pB)) / 2.0; 

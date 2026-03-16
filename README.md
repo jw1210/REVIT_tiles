@@ -1,23 +1,24 @@
 # AntiGravity 磁磚計畫 (TilePlanner) — Revit 零件排磚專家
 
-## 🎯 V3.4 版本亮點 — UX 邏輯加固版
+## 🚀 V4.1.2 最終優化版 — 終極收邊與幾何補償
 
-**版本 V3.4 (2026-03-14)** 完善了操作細節與穩定性：
+**版本 V4.1.2 (2026-03-16)** 穩定的幾何處理與專業收邊邏輯：
 
-- ✨ **輸入防護網 (Anti-Crash)** — 100% 攔截格式錯誤，杜絕因非法字元導致的崩潰。
-- ✨ **快速鍵支持 (Keyboard Map)** — 支援 Enter 執行與 Esc 取消，提升批量操作效率。
-- ✨ **獨立對調功能 (Split Swap)** — 尺寸長寬與灰縫現在可獨立對調，操作更直覺。
-- ✨ **一鍵即時更新 (Instant Sync)** — 解決幾何延遲，完美對齊最新物理邊界。
+- ✨ **終極幾何補償 (Geometric Compensation)** — 完美支援非 90 度轉角、圓弧牆面及各類複雜地形。
+- ✨ **四大收邊形式** — 支援 Miter (磨角)、Cover (蓋磚)、Butt (離縫)、Embed (嵌入)。
+- ✨ **正面蓋磚「雙向齊平」優化** — 獨創雙向刀法，確保蓋磚側與被切側 100% 齊平平整。
+- ✨ **2mm 灰縫安全限制** — 強制執行 2mm 下限，徹底杜絕 Revit 生成微小細屑導致的系統崩潰。
+- ✨ **失敗預處理器 (Failure Resolver)** — 自動攔截並修復 Revit 內部錯誤，實現交易 0 彈窗。
 
 ## 核心功能特色
 
 本外掛採用獨創的**兩階段參照平面切割法 (Two-Stage Reference Plane Division)**。
 
 - ✅ **基於零件 (Parts) 架構**：不依賴沉重的帷幕牆，效能極致。
-- ✅ **100% 靜默執行**：全面攔截「零件未相交」等警告，永不彈出 HTML 錯誤報告。
 - ✅ **全物件自動切割**：自動追蹤宿主主體並同步完成整面磁磚分割。
+- ✅ **全向度幾何切割**：支援 45 度磨角及各類異型收頭。
 - ✅ **外參開口自動閃避**：偵測交疊的外參模型門窗並剔除廢料。
-- ✅ **全視圖支援**：完美支援 3D、平面、剖面等所有視角。
+- ✅ **全版本支援**：完美相容 Revit 2024 與 2025。
 
 ## 專案核心結構
 
@@ -26,13 +27,14 @@ TilePlanner/
 ├── App.cs                          # Ribbon UI 入口
 ├── Commands/
 │   ├── CreateTilePlanCommand.cs    # 建立 Master Transaction
+│   ├── ManualCornerJoinCommand.cs  # [NEW] V4.1 收邊與幾何補償引擎
 │   ├── RemoveTilePlanCommand.cs    # 追查 Host 並刪除
-│   └── TogglePartsVisibilityCommand.cs # 全域視圖切換 (支援 3D)
+│   └── TogglePartsVisibilityCommand.cs # 全域視圖切換
 ├── Core/
 │   ├── TilePartEngine.cs           # 核心引擎 (物理切割與 Regen)
-│   └── GridConstraintManager.cs    # 隱形標註鎖定機制
+│   └── GridConstraintManager.cs    # 剛體群組綁定機制 (防呆平移)
 ├── UI/
-│   └── TilePlannerDialog.cs        # 純 C# WPF 對話框 (含防呆驗證)
+│   └── TilePlannerDialog.cs        # 主程式對話框
 ```
 
 ## 使用方法
@@ -41,15 +43,15 @@ TilePlanner/
 
 1. 將 `TilePlanner.addin` 複製到：
    ```text
-   %AppData%\Autodesk\Revit\Addins\2025\
+   %AppData%\Autodesk\Revit\Addins\2024 (或 2025)\
    ```
-2. 將編譯輸出的 `TilePlanner.dll` 複製到相同目錄。
+2. 將對應版本的 `TilePlanner.dll` 複製到相同目錄。
 
 ### 2. 操作說明
 
-- **建立/重繪**：選取物件後點擊「磁磚計畫」，調整參數後按確定。
-- **顯示切換**：使用 Ribbon 上的獨立按鈕切換網格或零件顯示。
+- **基本排磚**：選取物件後點擊「磁磚計畫」，調整參數後執行。
+- **收邊處理**：點擊「手動轉角收邊」，選取兩側磁磚後設定形式與灰縫 (建議 2mm 以上)。
 
 ---
 
-**更新日期**: 2026-03-14
+**最後更新日期**: 2026-03-16

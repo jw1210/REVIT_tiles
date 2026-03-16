@@ -42,14 +42,14 @@ namespace TilePlanner
                 panel.AddItem(togglePartsBtnData);
 
                 // ==========================================
-                // [V3.8] 手動局部轉角收邊
+                // [V4.1.3] 手動轉角接合 - 零件延伸與平面分割版
                 // ==========================================
                 PushButtonData manualJoinBtnData = new PushButtonData(
                     "ManualCornerJoin", 
-                    "局部轉角\n(手動收邊)", 
+                    "手動轉角接合\n(V4.1.3)", 
                     assemblyPath, 
                     "TilePlanner.Commands.ManualCornerJoinCommand");
-                manualJoinBtnData.ToolTip = "獨立選取兩塊磁磚，手動將其接合形式變更為 45 度角或蓋磚。支援牆壁與樓板部位。";
+                manualJoinBtnData.ToolTip = "[V4.1.3 零件延伸/平面切割] 透過零件物理延伸與無限平面切割技術，確保轉角接合之幾何穩定性。";
                 panel.AddItem(manualJoinBtnData);
 
                 return Result.Succeeded;

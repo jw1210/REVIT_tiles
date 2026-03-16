@@ -100,12 +100,18 @@ namespace TilePlanner.Core
             CreateGridWeb(fullHostTargetFace, horizPlanes, vertPlanesSetA, vertPlanesSetB, hostOriginal.Id);
             _doc.Regenerate(); // [第二次刷新]：讓剛建立的網格生效
 
-            GridConstraintManager constraintMgr = new GridConstraintManager(_doc, fullHostTargetFace, _config);
-            constraintMgr.LockPlanes(horizPlanes, true);
+            // ==========================================
+            // [V3.5 核心修復] 捨棄標註，改用 Group 強制鎖定網格
+            // ==========================================
+            GridConstraintManager constraintMgr = new GridConstraintManager(_doc);
             
+            // 打包水平網格群組
+            constraintMgr.GroupPlanes(horizPlanes, "TileGrid_H", hostOriginal.Id.ToString());
+            
+            // 將 A/B 兩組交丁排網格合併，打包為一個垂直網格群組
             List<ElementId> allVertPlanes = new List<ElementId>(vertPlanesSetA);
             allVertPlanes.AddRange(vertPlanesSetB);
-            constraintMgr.LockPlanes(allVertPlanes, false);
+            constraintMgr.GroupPlanes(allVertPlanes, "TileGrid_V", hostOriginal.Id.ToString());
             _doc.Regenerate(); // [第三次刷新]：讓標註鎖定生效
 
             // 4. 兩階段分割與開口排除

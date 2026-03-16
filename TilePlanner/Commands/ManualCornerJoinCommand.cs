@@ -8,7 +8,7 @@ using Autodesk.Revit.UI.Selection;
 
 namespace TilePlanner.Commands
 {
-    // --- 1. 靜默錯誤處理器 (僅攔截 1.6mm 微小廢料刪除警告) ---
+// --- 1. 靜默錯誤處理器 ---
     public class TinyPartFailureHandler : IFailuresPreprocessor
     {
         public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
@@ -34,7 +34,8 @@ namespace TilePlanner.Commands
                     }
                     else
                     {
-                        return FailureProcessingResult.ProceedWithRollBack;
+                        // 修正：不再靜默回退。交給 Revit 預設 UI 處理，讓使用者知道哪裡出錯。
+                        return FailureProcessingResult.Continue; 
                     }
                 }
             }
@@ -58,6 +59,9 @@ namespace TilePlanner.Commands
 
             try
             {
+                // [V4.1.11 Handshake]
+                TaskDialog.Show("版本驗證", "TilePlanner V4.1.11 核心模組啟動。");
+
                 // 1. 選擇接合模式
                 JoinMode mode = GetJoinModeFromUser();
                 if (mode == JoinMode.Cancel) return Result.Cancelled;
@@ -192,6 +196,11 @@ namespace TilePlanner.Commands
                 {
                     ElementId wasteId = subParts.OrderBy(id => GetCentroid(doc.GetElement(id)).DistanceTo(cornerOrigin)).First();
                     if(doc.GetElement(wasteId) != null) doc.Delete(wasteId);
+                }
+                else
+                {
+                    // 診斷：如果沒有產生子零件，表示切割線可能位於幾何邊緣或外部
+                    TaskDialog.Show("診斷", $"零件 {partId} 未能成功分割。請確認轉角交疊狀況。");
                 }
             }
             catch (Autodesk.Revit.Exceptions.ArgumentException ex) 

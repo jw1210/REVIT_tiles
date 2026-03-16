@@ -75,7 +75,7 @@ namespace TilePlanner.Commands
                 if (refsB.Count == 0) return Result.Cancelled;
 
                 // 3. 執行切割 Transaction
-                using (Transaction trans = new Transaction(doc, $"磁磚計畫 V4.1.10 - {(mode == JoinMode.Miter ? "雙側切角" : "蓋磚")}"))
+                using (Transaction trans = new Transaction(doc, $"磁磚計畫 V4.1.11 - {(mode == JoinMode.Miter ? "雙側切角" : "蓋磚")}"))
                 {
                     trans.Start();
 
@@ -98,7 +98,7 @@ namespace TilePlanner.Commands
                     // 4. 模組分流
                     if (mode == JoinMode.Miter)
                     {
-                        ExecuteMiterJoin(doc, refsA, refsB, nA, nB, cornerOrigin, gapFeet);
+                        ExecuteMiterJoin(doc, refsA, refsB, nA, nB, cornerOrigin, gapFeet, basePartA, basePartB);
                     }
                     else if (mode == JoinMode.Butt)
                     {
@@ -118,15 +118,22 @@ namespace TilePlanner.Commands
         }
 
         // --- 模組 A：雙側切角 (Miter Join) ---
-        private void ExecuteMiterJoin(Document doc, IList<Reference> refsA, IList<Reference> refsB, XYZ nA, XYZ nB, XYZ origin, double gapFeet)
+        private void ExecuteMiterJoin(Document doc, IList<Reference> refsA, IList<Reference> refsB, XYZ nA, XYZ nB, XYZ origin, double gapFeet, Part baseA, Part baseB)
         {
+            // 計算角平分線方向與垂直偏移方向
             XYZ cutDir = (nA + nB).Normalize();
             XYZ shiftDir = XYZ.BasisZ.CrossProduct(cutDir).Normalize();
-            XYZ shiftVector = shiftDir * (gapFeet / 2.0);
 
-            // 修正：依據法向量內積判定退縮方向。若偏移向量與法線同向 (DotProduct > 0)，表示向量朝外，須反向減去以向內退縮。
-            XYZ originA = (shiftVector.DotProduct(nA) > 0) ? origin - shiftVector : origin + shiftVector;
-            XYZ originB = (shiftVector.DotProduct(nB) > 0) ? origin - shiftVector : origin + shiftVector;
+            // 雙側各退縮 1mm (gapFeet/2)
+            XYZ p1 = origin + shiftDir * (gapFeet / 2.0);
+            XYZ p2 = origin - shiftDir * (gapFeet / 2.0);
+
+            XYZ centA = GetCentroid(baseA);
+            XYZ centB = GetCentroid(baseB);
+            
+            // 距離判定：將正確的切割基準點指派給對應的零件
+            XYZ originA = (p1.DistanceTo(centA) < p2.DistanceTo(centA)) ? p1 : p2;
+            XYZ originB = (p1.DistanceTo(centB) < p2.DistanceTo(centB)) ? p1 : p2;
 
             foreach (Reference r in refsA) ExecutePlanViewCut(doc, r.ElementId, originA, cutDir, origin);
             foreach (Reference r in refsB) ExecutePlanViewCut(doc, r.ElementId, originB, cutDir, origin);

@@ -33,6 +33,7 @@ namespace TilePlanner.Security
             // 根據使用者指示：只有安裝檔(.exe)安裝的程式才受 90 天限制。
             // 手動編譯與部署版本不在此限。
             return true; 
+            
             try
             {
                 RegistryKey key = Registry.CurrentUser.OpenSubKey(RegistryPath, true);

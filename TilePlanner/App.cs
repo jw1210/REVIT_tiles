@@ -42,15 +42,16 @@ namespace TilePlanner
                 panel.AddItem(togglePartsBtnData);
 
                 // ==========================================
-                // [V4.1.4] 手動轉角接合 - 物理自適應版
+                // [V4.1.12] 手動轉角接合 (Miter Join)
                 // ==========================================
                 PushButtonData manualJoinBtnData = new PushButtonData(
                     "ManualCornerJoin", 
-                    "手動轉角接合\n(V4.1.4)", 
+                    "手動轉角接合\n(V4.1.12)", 
                     assemblyPath, 
                     "TilePlanner.Commands.ManualCornerJoinCommand");
-                manualJoinBtnData.ToolTip = "[V4.1.4 物理自適應版] 採用真實幾何切割技術，不需預延伸零件即可自動計算交點並執行垂直雷射切割。";
+                manualJoinBtnData.ToolTip = "[V4.1.12] 導入法向量絕對判定邏輯，確保退縮方向恆指向實體內部，提升複雜角件的幾何穩定性。";
                 panel.AddItem(manualJoinBtnData);
+
 
                 return Result.Succeeded;
             }

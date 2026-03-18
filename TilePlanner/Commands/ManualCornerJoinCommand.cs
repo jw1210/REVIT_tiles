@@ -39,6 +39,7 @@ namespace TilePlanner.Commands
                 tg.Start();
                 try
                 {
+                    // [V4.1.20] 使用對位延伸 (Flush-to-Outer) 與正統斜切運算 (nA - nB)
                     double offsetFeet = 0.0;
 
                     // 1. 選取零件

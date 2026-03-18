@@ -7,6 +7,7 @@ using TilePlanner.Core.Services;
 namespace TilePlanner.Core
 {
     // ==========================================
+    // [V4.1.21] 交丁排起始網格修正 (Runner Bond Stagger Fix)
     // [V3.1 終極防護] 全域警告吞噬者 (Warning Swallower)
     // ==========================================
     public class WarningSwallower : IFailuresPreprocessor

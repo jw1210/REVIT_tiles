@@ -145,11 +145,12 @@ namespace TilePlanner.Core
             XYZ x = face.XVector, y = face.YVector, n = face.FaceNormal, o = face.Origin;
             double ud = _config.CellWidthFeet, vd = _config.CellHeightFeet;
             
-            double ext = 300.0 / 304.8; 
-            double edgeTolerance = 0.0065; 
+            double ext = 300.0 / 304.8; // 延伸用於繪製參考面
+            double edgeTolerance = 0.0065; // ~2mm 邊界保護
 
             Category sc = _gridService.GetOrCreateSubcategory();
 
+            // 1. 水平網格 (橫線)
             var hPoints = GeometryService.CalculateGridPoints(bb.Min.V, bb.Max.V, vd, _config.HGroutGapFeet / 2.0);
             hPoints.RemoveAll(p => p <= bb.Min.V + edgeTolerance || p >= bb.Max.V - edgeTolerance);
 
@@ -161,26 +162,34 @@ namespace TilePlanner.Core
                 if (id != ElementId.InvalidElementId) h.Add(id);
             }
 
-            var vPoints = GeometryService.CalculateGridPoints(bb.Min.U, bb.Max.U, ud, _config.VGroutGapFeet / 2.0);
-            vPoints.RemoveAll(p => p <= bb.Min.U + edgeTolerance || p >= bb.Max.U - edgeTolerance);
+            // 2. 垂直網格 (垂線 - 交丁排關鍵修正)
+            // 採集廣域網格，確保能捕捉到所有偏移後的切線
+            var rawVPoints = GeometryService.CalculateGridPoints(bb.Min.U - ud, bb.Max.U + ud, ud, _config.VGroutGapFeet / 2.0);
 
-            for (int i = 0; i < vPoints.Count; i++)
+            // A 排網格 (正排或交丁偶數排) — 獨立過濾
+            var vPointsA = rawVPoints.Where(p => p > bb.Min.U + edgeTolerance && p < bb.Max.U - edgeTolerance).ToList();
+            for (int i = 0; i < vPointsA.Count; i++)
             {
-                XYZ p1_A = GeometryService.ProjectToXYZ(o, x, y, vPoints[i], bb.Min.V - ext);
-                XYZ p2_A = GeometryService.ProjectToXYZ(o, x, y, vPoints[i], bb.Max.V + ext);
-                var idA = _gridService.CreateReferencePlane(p1_A, p2_A, n, $"TileGrid_VA_{i}_{hostId}", sc);
+                XYZ p1 = GeometryService.ProjectToXYZ(o, x, y, vPointsA[i], bb.Min.V - ext);
+                XYZ p2 = GeometryService.ProjectToXYZ(o, x, y, vPointsA[i], bb.Max.V + ext);
+                var idA = _gridService.CreateReferencePlane(p1, p2, n, $"TileGrid_VA_{i}_{hostId}", sc);
                 if (idA != ElementId.InvalidElementId) va.Add(idA);
+            }
 
-                if (_config.PatternType == TilePatternType.RunningBond)
+            // B 排網格 (交丁奇數排) — 獨立推導與過濾
+            if (_config.PatternType == TilePatternType.RunningBond)
+            {
+                double staggerOffset = ud * _config.RunningBondOffset;
+                var vPointsB = rawVPoints.Select(p => p + staggerOffset)
+                                         .Where(p => p > bb.Min.U + edgeTolerance && p < bb.Max.U - edgeTolerance)
+                                         .ToList();
+
+                for (int i = 0; i < vPointsB.Count; i++)
                 {
-                    double offsetU = vPoints[i] + ud * _config.RunningBondOffset;
-                    if (offsetU > bb.Min.U + edgeTolerance && offsetU < bb.Max.U - edgeTolerance)
-                    {
-                        XYZ p1_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Min.V - ext);
-                        XYZ p2_B = GeometryService.ProjectToXYZ(o, x, y, offsetU, bb.Max.V + ext);
-                        var idB = _gridService.CreateReferencePlane(p1_B, p2_B, n, $"TileGrid_VB_{i}_{hostId}", sc);
-                        if (idB != ElementId.InvalidElementId) vb.Add(idB);
-                    }
+                    XYZ p1 = GeometryService.ProjectToXYZ(o, x, y, vPointsB[i], bb.Min.V - ext);
+                    XYZ p2 = GeometryService.ProjectToXYZ(o, x, y, vPointsB[i], bb.Max.V + ext);
+                    var idB = _gridService.CreateReferencePlane(p1, p2, n, $"TileGrid_VB_{i}_{hostId}", sc);
+                    if (idB != ElementId.InvalidElementId) vb.Add(idB);
                 }
             }
         }

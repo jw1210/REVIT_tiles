@@ -42,14 +42,14 @@ namespace TilePlanner
                 panel.AddItem(togglePartsBtnData);
 
                 // ==========================================
-                // [V4.1.12] 手動轉角接合 (Miter Join)
+                // [V4.1.15] 手動轉角接合 (Miter Join)
                 // ==========================================
                 PushButtonData manualJoinBtnData = new PushButtonData(
                     "ManualCornerJoin", 
-                    "手動轉角接合\n(V4.1.12)", 
+                    "手動轉角接合\n(V4.1.15)", 
                     assemblyPath, 
-                    "TilePlanner.Commands.ManualCornerJoinCommand");
-                manualJoinBtnData.ToolTip = "[V4.1.12] 導入法向量絕對判定邏輯，確保退縮方向恆指向實體內部，提升複雜角件的幾何穩定性。";
+                    "TilePlanner.Commands.AutoMiterJoinCommandV4115");
+                manualJoinBtnData.ToolTip = "[V4.1.15] 局部座標、點對面判定版。支援斜面屋頂切割，並透過獨立交易隔離提昇成功率。";
                 panel.AddItem(manualJoinBtnData);
 
 

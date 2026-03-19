@@ -27,12 +27,18 @@ TilePlanner/
 ├── App.cs                          # Ribbon UI 入口
 ├── Commands/
 │   ├── CreateTilePlanCommand.cs    # 建立 Master Transaction
-│   ├── ManualCornerJoinCommand.cs  # V4.1 收邊與幾何補償引擎
-│   ├── RemoveTilePlanCommand.cs    # 追查 Host 並刪除
-│   └── TogglePartsVisibilityCommand.cs # 全域視圖切換
+│   ├── ManualCornerJoinCommand.cs  # (V4.3) UI 選擇與指令入口
+│   └── ...
 ├── Core/
-│   ├── TilePartEngine.cs           # 核心引擎 (物理切割與 Regen)
-│   └── GridConstraintManager.cs    # 剛體群組綁定機制 (防呆平移)
+│   ├── TilePartEngine.cs           # 核心排磚引擎 (只管網格)
+│   ├── GridConstraintManager.cs    # 剛體群組綁定機制
+│   ├── Services/                   # (V4.3) 獨立業務邏輯模組
+│   │   ├── MiterJoinService.cs     # 斜切分側排程
+│   │   ├── WallGeometryService.cs  # 牆體準備與延伸
+│   │   └── PartOperationService.cs # 切割與廢料隱藏
+│   └── Utils/                      # (V4.3) 廣域防護與共用工具
+│       ├── RevitElementExtensions.cs # 幾何與屬性萃取 (GetCentroid等)
+│       └── RevitFailureHandlers.cs   # 警告靜默與錯誤吞噬者
 ├── UI/
 │   └── TilePlannerDialog.cs        # 主程式對話框
 ```
@@ -54,14 +60,15 @@ TilePlanner/
 
 ## 🛠️ 開發規範與核心架構
 
-### 模組化開發原則 (Modular Specification)
+### 階層式模組化開發原則 (Hierarchical Modularization)
 
-為了確保程式碼的穩定性，本專案執行以下開發規範：
+本專案執行以下最高開發規範，確保程式碼的絕對穩定與防呆：
 
-1.  **策略模式分流 (Strategy Pattern)**：新功能或接合形式必須實作為獨立方法或類別。
-2.  **邏輯與核心隔離**：算法邏輯與 Revit API 切割流程物理分離。
-3.  **單一職責原則**：確保各 Method 職責明確，禁混入不相關邏輯。
+1.  **純結構解耦 (Structural Decoupling)**：所有的業務邏輯 (Services) 必須與 UI 選取 (Commands) 實體隔離。
+2.  **單向依賴 (One-Way Dependency)**：`Commands` 呼叫 `Services`，`Services` 呼叫 `Utils`。下層絕不可反向呼叫上層。
+3.  **純函數萃取 (Pure Functions)**：所有不涉及 Revit 交易狀態的 API 呼叫 (如取得重心、取得法向量)，必須寫作 `RevitElementExtensions` 下的靜態純函數。
+4.  **變更防護牆 (Firewall against Regression)**：對任何單一功能 (如修改灰縫或排磚邏輯) 的修改，絕對不允許更動跨功能層的核心服務，確保 V4.1.21 的穩定幾何數學永不被意外污染。
 
 ---
 
-**最後更新日期**: 2026-03-17
+**最後更新日期**: 2026-03-19 (V4.3 STABLE)

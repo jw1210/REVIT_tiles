@@ -1,7 +1,5 @@
 # Changelog
 
-# Changelog
-
 All notable changes to the AntiGravity TilePlanner project will be documented in this file.
 
 ## V4.3.0 (2026-03-19) - 🏆 [穩定版本重要節點] (STABLE MILESTONE)

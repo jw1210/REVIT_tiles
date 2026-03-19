@@ -2,6 +2,11 @@
 
 All notable changes to the AntiGravity TilePlanner project will be documented in this file.
 
+## V4.1.21 (2026-03-18) - 🏆 [穩定版本重要節點]
+- **[重大標記] 17:46 穩定版完全恢復與鎖定**：本版本為專案之基準穩定點。
+- **恢復 V4.1.21 核心邏輯**：包含完美的角平分斜切與交丁排磚修正。
+- **Git 標記**：已建立 `V4.1.21-STABLE` 標籤與 `V4.1.21-Stable-Node` 分支。
+
 ## [4.1.15] - 2026-03-18
 
 ### 4.1.15 新增功能

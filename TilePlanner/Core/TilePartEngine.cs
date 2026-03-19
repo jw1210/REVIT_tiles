@@ -3,29 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
 using TilePlanner.Core.Services;
+using TilePlanner.Core.Utils;
 
 namespace TilePlanner.Core
 {
-    // ==========================================
-    // [V3.1 終極防護] 全域警告吞噬者 (Warning Swallower)
-    // ==========================================
-    public class WarningSwallower : IFailuresPreprocessor
-    {
-        public FailureProcessingResult PreprocessFailures(FailuresAccessor failuresAccessor)
-        {
-            IList<FailureMessageAccessor> failures = failuresAccessor.GetFailureMessages();
-            foreach (FailureMessageAccessor f in failures)
-            {
-                // 只要是警告 (如：零件未相交)，一律靜默刪除
-                if (f.GetSeverity() == FailureSeverity.Warning)
-                {
-                    failuresAccessor.DeleteWarning(f);
-                }
-            }
-            return FailureProcessingResult.Continue;
-        }
-    }
-
     public class TilePartEngine
     {
         private readonly Document _doc;

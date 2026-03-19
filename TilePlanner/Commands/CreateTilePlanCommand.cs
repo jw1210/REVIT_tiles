@@ -6,6 +6,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Selection;
 using TilePlanner.Core;
+using TilePlanner.Core.Utils;
 using TilePlanner.UI;
 
 namespace TilePlanner.Commands

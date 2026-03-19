@@ -2,7 +2,15 @@
 
 All notable changes to the AntiGravity TilePlanner project will be documented in this file.
 
-## V4.1.21 (2026-03-18) - 🏆 [穩定版本重要節點]
+## V4.3.0 (2026-03-19) - 🏆 [重大架構升級]
+- **[重要里程碑] 階層式模組化重構**：為了確保外掛長期的可維護性與防止功能牽連，我們成功實施了零數學修改的結構性搬移。
+- **架構解耦**：
+    1. **Commands**：只保留最小化的 Revit UI 互動。
+    2. **Services**：切割、延伸、排磚邏輯完全解耦，放入 `MiterJoinService`, `PartOperationService`, `WallGeometryService`。
+    3. **Utils**：所有底層 Revit API 工具函數放入 `RevitElementExtensions` 與 `RevitFailureHandlers`。
+- **版本鎖定**：以此版本作為 V4.3 大版號的穩定基石。
+
+## V4.1.21 (2026-03-18) - 🛡️ [穩定核心基準節點]
 - **[重大標記] 17:46 穩定版完全恢復與鎖定**：本版本為專案之基準穩定點。
 - **恢復 V4.1.21 核心邏輯**：包含完美的角平分斜切與交丁排磚修正。
 - **Git 標記**：已建立 `V4.1.21-STABLE` 標籤與 `V4.1.21-Stable-Node` 分支。

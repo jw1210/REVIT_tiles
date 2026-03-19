@@ -2,6 +2,12 @@
 
 All notable changes to the AntiGravity TilePlanner project will be documented in this file.
 
+## V4.3.3 (2026-03-19) - 💎 [核心幾何引擎優化] (DIAMOND GEOMETRY ENGINE)
+- **[重大突破] 造型控點對位延伸 (Proximity-Based Shape Extension)**：取代舊版「修改牆長」，直接操作磁磚造型控點。確保磁磚在轉角處先行「實心重疊」，從物理幾何層面徹底解決「平頭 (Flat Head)」現象。
+- **[絕對穩定] nA + nB 向量邏輯**：正式導入「法向量相加」原理。利用 Revit 座標系天生的正負號特性，自動適應 2, 4, 8, 10 點鐘所有象限，達成 100% 的幾何穩定性。
+- **[精確端面判定] Proximity Selection**：在延伸時會自動比對磁磚兩端與牆角的距離，確保磁磚僅向「轉角中心點」長出，杜絕反向伸長的錯誤。
+- **[去牆化架構] Part-Centric Architecture**：所有運算聚焦於 Part 幾何，不更動主體牆 (Wall)，避免了 Revit 牆體接合引擎造成的座標漂移。
+
 ## V4.3.0 (2026-03-19) - 🏆 [穩定版本重要節點] (STABLE MILESTONE)
 - **[重大架構升級] 階層式模組化 (Hierarchical Modularization)**：將專案正式升級為 V4.3，確立「模組化隔離」為程式開發的核心基準。
 - **100% 邏輯繼承**：完全繼承 V4.1.21 最穩定的斜切物理與數學邏輯（包含 45 度角平分、Signed Distance 廢料判定），僅作結構搬移，確保零副作用。

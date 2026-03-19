@@ -43,58 +43,107 @@ namespace TilePlanner.Core.Services
                     XYZ intersectXY = ira.get_Item(0).XYZPoint;
 
                     // -------------------------------------------------------------------------
-                    // 準備階段：解開接合併延伸牆體 (Flush to Outer face)
+                    // 獲取表面、牆向並執行延伸 (步驟 1 & 2)
                     // -------------------------------------------------------------------------
-                    using (Transaction tPrep = new Transaction(doc, "延伸牆體"))
+                    PlanarFace outA = null, inA = null, outB = null, inB = null;
+                    XYZ wallDirA = ((wallA.Location as LocationCurve).Curve as Line).Direction.Normalize();
+                    XYZ wallDirB = ((wallB.Location as LocationCurve).Curve as Line).Direction.Normalize();
+
+                    using (Transaction tPrep = new Transaction(doc, "磁磚零件對位延伸"))
                     {
                         tPrep.Start();
-                        WallGeometryService.ExtendWallToIncludeCorner(wallA, intersectXY, wallB.Width);
-                        WallGeometryService.ExtendWallToIncludeCorner(wallB, intersectXY, wallA.Width);
+                        foreach (var p in partsA) PartOperationService.SetPartShapeModified(p, true);
+                        foreach (var p in partsB) PartOperationService.SetPartShapeModified(p, true);
+                        doc.Regenerate();
+
+                        // 抓取延伸前的初始表面
+                        outA = PartOperationService.GetOuterFace(partsA.First(), wallA);
+                        outB = PartOperationService.GetOuterFace(partsB.First(), wallB);
+
+                        if (outA != null && outB != null)
+                        {
+                            // A 延伸至 B 外皮 (使用法向量投影計算距離)
+                            foreach (var p in partsA)
+                            {
+                                PlanarFace endA = PartOperationService.GetEndFace(p, wallDirA, intersectXY);
+                                if (endA != null)
+                                {
+                                    double dist = Math.Abs(outB.FaceNormal.DotProduct(endA.Origin - outB.Origin));
+                                    p.SetFaceOffset(endA, dist + 0.05); // 0.05 呎重疊確保覆蓋
+                                }
+                            }
+
+                            // B 延伸至 A 外皮
+                            foreach (var p in partsB)
+                            {
+                                PlanarFace endB = PartOperationService.GetEndFace(p, wallDirB, intersectXY);
+                                if (endB != null)
+                                {
+                                    double dist = Math.Abs(outA.FaceNormal.DotProduct(endB.Origin - outA.Origin));
+                                    p.SetFaceOffset(endB, dist + 0.05);
+                                }
+                            }
+                        }
+                        
                         doc.Regenerate();
                         tPrep.Commit();
                     }
 
-                    // 3. 計算 Miter 基準 (nA - nB)
-                    XYZ nA_ref = partsA.First().GetDominantFaceNormal();
-                    XYZ nB_ref = partsB.First().GetDominantFaceNormal();
-                    XYZ miterNormal = (nA_ref - nB_ref).Normalize();
+                    // -------------------------------------------------------------------------
+                    // 步驟 3：nA + nB 向量斜切 (Final Vector Cut)
+                    // -------------------------------------------------------------------------
+                    
+                    // 1. 獲取最終表面 (延伸後刷新)
+                    outA = PartOperationService.GetOuterFace(partsA.First(), wallA);
+                    inA = PartOperationService.GetInnerFace(partsA.First(), wallA);
+                    outB = PartOperationService.GetOuterFace(partsB.First(), wallB);
+                    inB = PartOperationService.GetInnerFace(partsB.First(), wallB);
+
+                    if (outA == null || inA == null || outB == null || inB == null)
+                    {
+                        TaskDialog.Show("錯誤", "延伸後無法定位表面，請檢查牆向。");
+                        return Result.Failed;
+                    }
+
+                    // 2. 利用 nA + nB 決定向量與交點
+                    XYZ ptOuter = PartOperationService.GetIntersection2D(outA.Origin, outA.FaceNormal, outB.Origin, outB.FaceNormal);
+                    XYZ ptInner = PartOperationService.GetIntersection2D(inA.Origin, inA.FaceNormal, inB.Origin, inB.FaceNormal);
+
+                    if (ptOuter == null || ptInner == null)
+                    {
+                        TaskDialog.Show("錯誤", "交點計算失敗。");
+                        return Result.Failed;
+                    }
+
+                    XYZ vDiag = (outA.FaceNormal + outB.FaceNormal).Normalize();
+                    if (vDiag.GetLength() < 0.1) vDiag = (ptOuter - ptInner).Normalize(); // 防呆備案
 
                     // -------------------------------------------------------------------------
                     // 分側序列執行 (Phase A -> Phase B)
                     // -------------------------------------------------------------------------
                     
-                    // Phase A
                     int successA = 0;
-                    using (Transaction tA = new Transaction(doc, "Phase A Split"))
+                    using (Transaction tA = new Transaction(doc, "Phase A - True Miter"))
                     {
                         tA.Start();
                         tA.SetFailureHandlingOptions(tA.GetFailureHandlingOptions().SetFailuresPreprocessor(new AutoDeleteFailureHandler()));
-                        foreach (Part p in partsA)
-                        {
-                            XYZ origin = new XYZ(intersectXY.X, intersectXY.Y, p.GetCentroid().Z);
-                            if (PartOperationService.CutAndExcludeWasteZeroGap(doc, p.Id, origin, miterNormal, offsetFeet)) successA++;
-                        }
+                        if (PartOperationService.PerformTrueDiagonalCut(doc, partsA, ptInner, vDiag, wallA)) successA = partsA.Count;
                         doc.Regenerate();
                         tA.Commit();
                     }
 
-                    // Phase B
                     int successB = 0;
-                    using (Transaction tB = new Transaction(doc, "Phase B Split"))
+                    using (Transaction tB = new Transaction(doc, "Phase B - True Miter"))
                     {
                         tB.Start();
                         tB.SetFailureHandlingOptions(tB.GetFailureHandlingOptions().SetFailuresPreprocessor(new AutoDeleteFailureHandler()));
-                        foreach (Part p in partsB)
-                        {
-                            XYZ origin = new XYZ(intersectXY.X, intersectXY.Y, p.GetCentroid().Z);
-                            if (PartOperationService.CutAndExcludeWasteZeroGap(doc, p.Id, origin, miterNormal, offsetFeet)) successB++;
-                        }
+                        if (PartOperationService.PerformTrueDiagonalCut(doc, partsB, ptInner, vDiag, wallB)) successB = partsB.Count;
                         doc.Regenerate();
                         tB.Commit();
                     }
 
-                    tg.Assimilate(); // 確認所有操作
-                    TaskDialog.Show("TilePlanner V4.1.21", $"模組化重構完成！\nA 成功：{successA}\nB 成功：{successB}\n(已套用對位延伸與斜切修正)");
+                    tg.Assimilate();
+                    TaskDialog.Show("TilePlanner V4.3.1", $"45度背斜完成！\nA 側：{successA} 件\nB 側：{successB} 件\n(已切換至 True Diagonal 精確算法)");
                     return Result.Succeeded;
                 }
                 catch (Exception ex)

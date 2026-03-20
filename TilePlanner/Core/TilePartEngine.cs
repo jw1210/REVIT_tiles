@@ -99,6 +99,16 @@ namespace TilePlanner.Core
             PerformDivision(siblingPartIds, horizPlanes, vertPlanesSetA, vertPlanesSetB, sketchPlane.Id, fullHostTargetFace.YVector);
 
             if (openingBoxes.Count > 0) _openingService.ExcludePartsInOpenings(hostOriginal.Id, openingBoxes);
+
+            // ==========================================
+            // [V4.5] 寫入參數供性質欄顯示與自動更新
+            // ==========================================
+            var finalPartIds = PartUtils.GetAssociatedParts(_doc, hostOriginal.Id, false, true);
+            foreach (ElementId pid in finalPartIds)
+            {
+                Element p = _doc.GetElement(pid);
+                ParameterService.SetConfigParams(p, _config, hostOriginal.Id.ToString());
+            }
         }
 
         private PlanarFace GetTargetFace(Element host)

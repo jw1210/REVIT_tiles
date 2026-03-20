@@ -19,7 +19,6 @@ namespace TilePlanner.Core.Services
                 tg.Start();
                 try
                 {
-                    double offsetFeet = 0.0; // Zero Gap 邏輯
 
                     // 1. 幾何收集與排序
                     var partsA = refsA.Select(r => doc.GetElement(r) as Part).Where(p => p != null).OrderBy(p => p.GetCentroid().Z).ToList();

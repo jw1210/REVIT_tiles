@@ -1,6 +1,9 @@
 using System;
 using System.Reflection;
 using Autodesk.Revit.UI;
+using Autodesk.Revit.DB;
+using TilePlanner.Updaters;
+using TilePlanner.Core.Services;
 
 namespace TilePlanner
 {
@@ -52,6 +55,20 @@ namespace TilePlanner
                 manualJoinBtnData.ToolTip = "[V4.3] 穩定版架構重構：100% 繼承 V4.1.21 幾何數學，並導入階層式模組化以避免邏輯污染。";
                 panel.AddItem(manualJoinBtnData);
 
+                // ==========================================
+                // [V4.5] 註冊性質欄驅動更新器 (IUpdater)
+                // ==========================================
+                TileGroutUpdater updater = new TileGroutUpdater(application.ActiveAddInId);
+                UpdaterRegistry.RegisterUpdater(updater);
+                
+                // 設定觸發條件：當 Parts 的 Grout 參數改變時
+                ElementClassFilter partFilter = new ElementClassFilter(typeof(Part));
+                UpdaterRegistry.AddTrigger(updater.GetUpdaterId(), partFilter, Element.GetChangeTypeParameter(new ElementId(BuiltInParameter.INVALID))); // 這裡會由代碼內部判斷參數名
+
+                // 註冊文檔開啟事件以初始化參參數
+                application.ControlledApplication.DocumentOpened += (s, e) => {
+                    ParameterService.InitializeSharedParameters(e.Document);
+                };
 
                 return Result.Succeeded;
             }

@@ -2,6 +2,12 @@
 
 All notable changes to the AntiGravity TilePlanner project will be documented in this file.
 
+## V4.5.0 (2026-03-20) - ⚡ [極速連動] 性質欄驅動與自動重排 (LIVE PROPERTIES)
+- **[新功能] 性質欄即時調整**：選取任一零件，即可在 Properties Palette 修改 `Tile_HGroutGap` 或 `Tile_VGroutGap`。
+- **[自動化] 動態更新引擎**：修改灰縫後，程式將自動偵測並重新執行全牆分割，無需重新開啟對話框。
+- **[穩定性] 平行版本相容**：同時支援 Revit 2024 (.NET 4.8) 與 2025 (.NET 8.0) 的 IUpdater 機制。
+- **[架構] 參數物聯網**：建立 `ParameterService` 與 `TileGroutUpdater`，實現幾何運算與性質數據的雙向同步。
+
 ## V4.3.4 (2026-03-20) - 📏 [對齊與穩定性修正] (ALIGNMENT STABILITY)
 - **[精確對齊] 穩定網格原點**：重構網格生成算法，從 bb.Min 座標強制對齊，解決交丁排在邊緣產生的 1.5mm 精度落差。
 - **[行列偵測] 幾何重心判定**：改用零件幾何重心 (Centroid) 進行行列劃分，取代不穩定的人造外框 (Bounding Box)，徹底解決門窗截斷處的規律失效問題。
@@ -12,9 +18,6 @@ All notable changes to the AntiGravity TilePlanner project will be documented in
 - **[絕對穩定] nA + nB 向量邏輯**：正式導入「法向量相加」原理。利用 Revit 座標系天生的正負號特性，自動適應 2, 4, 8, 10 點鐘所有象限，達成 100% 的幾何穩定性。
 - **[精確端面判定] Proximity Selection**：在延伸時會自動比對磁磚兩端與牆角的距離，確保磁磚僅向「轉角中心點」長出，杜絕反向伸長的錯誤。
 - **[去牆化架構] Part-Centric Architecture**：所有運算聚焦於 Part 幾何，不更動主體牆 (Wall)，避免了 Revit 牆體接合引擎造成的座標漂移。
-
-### 已知問題 (Known Issues)
-- **[幾何補償] 1.52cm (0.05ft) 廢料延伸**：為確保轉角 Boolean 切割絕對成功，目前硬編碼了 0.05 呎的物理重疊量。這會導致被排除的「廢料零件」在視覺上比實際外表面長出 1.52cm。此為預期中的幾何穩定補償，暫不移除以維持切割成功率。
 
 ## V4.3.0 (2026-03-19) - 🏆 [穩定版本重要節點] (STABLE MILESTONE)
 - **[重大架構升級] 階層式模組化 (Hierarchical Modularization)**：將專案正式升級為 V4.3，確立「模組化隔離」為程式開發的核心基準。

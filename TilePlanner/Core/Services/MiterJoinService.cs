@@ -143,7 +143,7 @@ namespace TilePlanner.Core.Services
                     }
 
                     tg.Assimilate();
-                    TaskDialog.Show("TilePlanner V4.3.1", $"45度背斜完成！\nA 側：{successA} 件\nB 側：{successB} 件\n(已切換至 True Diagonal 精確算法)");
+                    TaskDialog.Show("TilePlanner V4.3.4", $"45度背斜完成！\nA 側：{successA} 件\nB 側：{successB} 件\n(已切換至 True Diagonal 精確算法)");
                     return Result.Succeeded;
                 }
                 catch (Exception ex)

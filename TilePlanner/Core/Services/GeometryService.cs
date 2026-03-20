@@ -13,13 +13,18 @@ namespace TilePlanner.Core.Services
         public static double FeetToMm(double feet) => feet * 304.8;
 
         /// <summary>
-        /// 計算垂直與水平網格分佈點
+        /// 計算分佈點 (輔助對位)。此方法會從 start 向兩側延伸以覆蓋 [min, max] 區間
         /// </summary>
-        public static List<double> CalculateGridPoints(double min, double max, double interval, double gapHalf)
+        public static List<double> CalculateGridPoints(double min, double max, double start, double interval)
         {
             var points = new List<double>();
-            // Flush Start 邏輯：起點從「邊界 - 半個灰縫」開始
-            for (double p = min - gapHalf; p <= max + interval; p += interval)
+            
+            // 向下找起點 (確保覆蓋 min)
+            double p = start;
+            while (p > min - interval) p -= interval;
+
+            // 向上填充 (直到超過 max)
+            for (; p <= max + interval; p += interval)
             {
                 points.Add(p);
             }

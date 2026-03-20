@@ -61,9 +61,9 @@ namespace TilePlanner
                 TileGroutUpdater updater = new TileGroutUpdater(application.ActiveAddInId);
                 UpdaterRegistry.RegisterUpdater(updater);
                 
-                // 設定觸發條件：當 Parts 的 Grout 參數改變時
+                // 設定觸發條件：當 Parts 發生任何幾何或參數改變時
                 ElementClassFilter partFilter = new ElementClassFilter(typeof(Part));
-                UpdaterRegistry.AddTrigger(updater.GetUpdaterId(), partFilter, Element.GetChangeTypeParameter(new ElementId(BuiltInParameter.INVALID))); // 這裡會由代碼內部判斷參數名
+                UpdaterRegistry.AddTrigger(updater.GetUpdaterId(), partFilter, Element.GetChangeTypeAny());
 
                 // 註冊文檔開啟事件以初始化參參數
                 application.ControlledApplication.DocumentOpened += (s, e) => {

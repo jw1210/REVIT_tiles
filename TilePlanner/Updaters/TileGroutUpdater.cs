@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
 using TilePlanner.Core;
 using TilePlanner.Core.Services;
+using TilePlanner.Core.Utils;
 
 namespace TilePlanner.Updaters
 {
@@ -19,26 +21,35 @@ namespace TilePlanner.Updaters
 
         public void Execute(UpdaterData data)
         {
-            if (_isProcessing) return; // 防止循環觸發
+            if (_isProcessing) return;
 
             Document doc = data.GetDocument();
-            
-            // 取得被修改的零件
             ICollection<ElementId> modifiedIds = data.GetModifiedElementIds();
             if (modifiedIds.Count == 0) return;
 
             Element firstElem = doc.GetElement(modifiedIds.First());
-            if (firstElem == null) return;
+            if (firstElem == null || !(firstElem is Part part)) return;
 
-            // 取得對應的 Host ID
+            // [備註] V4.5.2 診斷點：若此處無彈窗，代表 Revit 未觸發 IUpdater
+
+            // 1. 優先嘗試從性質欄取得 Host ID
+            Element host = null;
             Parameter pHost = firstElem.LookupParameter(ParameterService.PARAM_HOST_ID);
-            if (pHost == null || string.IsNullOrEmpty(pHost.AsString())) return;
-
-            if (long.TryParse(pHost.AsString(), out long hostIdLong))
+            if (pHost != null && !string.IsNullOrEmpty(pHost.AsString()))
             {
-                ElementId hostId = new ElementId(hostIdLong);
-                Element host = doc.GetElement(hostId);
-                if (host == null) return;
+                if (long.TryParse(pHost.AsString(), out long idLong))
+                {
+                    host = doc.GetElement(new ElementId(idLong));
+                }
+            }
+
+            // 2. 若性質欄失效，嘗試從 Revit 內建溯源取得 (Fallback)
+            if (host == null)
+            {
+                host = part.GetHostWall(); // 使用 RevitElementExtensions 中的擴充方法
+            }
+
+            if (host == null) return;
 
                 // 從目前零件讀取新的 Config
                 TileConfig newConfig = ParameterService.GetConfigFromElement(firstElem);
@@ -58,15 +69,14 @@ namespace TilePlanner.Updaters
                         ParameterService.SetConfigParams(newPart, newConfig, host.Id.ToString());
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // 可以記錄錯誤
+                    TaskDialog.Show("TilePlanner Updater Error", ex.Message + "\n" + ex.StackTrace);
                 }
                 finally
                 {
                     _isProcessing = false;
                 }
-            }
         }
 
         public string GetAdditionalInformation() => "自動更新磁磚灰縫間距並重新分割牆面";

@@ -14,6 +14,14 @@ namespace TilePlanner.Core.Services
         public const string PARAM_PATTERN = "Tile_PatternType"; 
         public const string PARAM_HOST_ID = "Tile_HostElementId";
 
+        // Stable GUIDs for Shared Parameters (V4.5.1+)
+        private static readonly Guid GUID_H_GROUT = new Guid("a7b6c5d4-e3f2-a1b0-c9d8-e7f6a5b4c3d2");
+        private static readonly Guid GUID_V_GROUT = new Guid("b8c7d6e5-f4a3-b2c1-d0e9-f8a7b6c5d4e3");
+        private static readonly Guid GUID_WIDTH = new Guid("c9d8e7f6-a5b4-c3d2-e1f0-a9b8c7d6e5f4");
+        private static readonly Guid GUID_HEIGHT = new Guid("d0e9f8a7-b6c5-d4e3-f2a1-b0c9d8e7f6a5");
+        private static readonly Guid GUID_PATTERN = new Guid("e1f0a9b8-c7d6-e5f4-a3b2-c1d0e9f8a7b6");
+        private static readonly Guid GUID_HOST_ID = new Guid("f2a1b0c9-d8e7-f6a5-b4c3-d2e1f0a9b8c7");
+
         public static void InitializeSharedParameters(Document doc)
         {
             string tempPath = Path.Combine(Path.GetTempPath(), "TilePlannerSharedParams.txt");
@@ -27,12 +35,12 @@ namespace TilePlanner.Core.Services
                     sw.WriteLine("*GROUP	ID	NAME");
                     sw.WriteLine("GROUP	1	磁磚計畫");
                     sw.WriteLine("*PARAM	GUID	NAME	DATATYPE	DATACATEGORY	GROUP	VISIBLE	DESCRIPTION	USERMODIFIABLE");
-                    sw.WriteLine($"PARAM	{Guid.NewGuid()}	{PARAM_H_GROUT}	LENGTH		1	1		1");
-                    sw.WriteLine($"PARAM	{Guid.NewGuid()}	{PARAM_V_GROUT}	LENGTH		1	1		1");
-                    sw.WriteLine($"PARAM	{Guid.NewGuid()}	{PARAM_WIDTH}	LENGTH		1	1		0");
-                    sw.WriteLine($"PARAM	{Guid.NewGuid()}	{PARAM_HEIGHT}	LENGTH		1	1		0");
-                    sw.WriteLine($"PARAM	{Guid.NewGuid()}	{PARAM_PATTERN}	INTEGER		1	1		0");
-                    sw.WriteLine($"PARAM	{Guid.NewGuid()}	{PARAM_HOST_ID}	TEXT		1	1		0");
+                    sw.WriteLine($"PARAM	{GUID_H_GROUT}	{PARAM_H_GROUT}	LENGTH		1	1		1");
+                    sw.WriteLine($"PARAM	{GUID_V_GROUT}	{PARAM_V_GROUT}	LENGTH		1	1		1");
+                    sw.WriteLine($"PARAM	{GUID_WIDTH}	{PARAM_WIDTH}	LENGTH		1	1		0");
+                    sw.WriteLine($"PARAM	{GUID_HEIGHT}	{PARAM_HEIGHT}	LENGTH		1	1		0");
+                    sw.WriteLine($"PARAM	{GUID_PATTERN}	{PARAM_PATTERN}	INTEGER		1	1		0");
+                    sw.WriteLine($"PARAM	{GUID_HOST_ID}	{PARAM_HOST_ID}	TEXT		1	1		0");
                 }
             }
 
@@ -61,6 +69,16 @@ namespace TilePlanner.Core.Services
                         {
                             InstanceBinding instanceBinding = doc.Application.Create.NewInstanceBinding(catSet);
                             bindingMap.Insert(def, instanceBinding, GroupTypeId.Data);
+                        }
+                        else
+                        {
+                            // 檢查是否已綁定到 OST_Parts，若無則重新綁定
+                            Binding binding = bindingMap.get_Item(def);
+                            if (binding is InstanceBinding ib && !ib.Categories.Contains(partCat))
+                            {
+                                ib.Categories.Insert(partCat);
+                                bindingMap.ReInsert(def, ib, GroupTypeId.Data);
+                            }
                         }
                     }
                     t.Commit();

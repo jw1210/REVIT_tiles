@@ -27,19 +27,24 @@ namespace TilePlanner.Core
         // [V3.1] 此方法已拔除內部 Transaction，完全依賴外部的 Master Transaction
         public void ExecuteOnElement(Element hostElement)
         {
-            if (!(hostElement is Part targetPart)) return;
+            if (hostElement == null) return;
 
-            // 1. [母體溯源]
-            ElementId currentId = targetPart.Id;
-            Element currentElement = targetPart;
-            while (currentElement is Part p)
+            // 1. [母體溯源] 如果傳入的是零件，則向上追溯至原始牆體/樓板
+            Element hostOriginal = hostElement;
+            if (hostElement is Part part)
             {
-                var sourceIds = p.GetSourceElementIds();
-                if (sourceIds == null || sourceIds.Count == 0) break;
-                currentId = sourceIds.First().HostElementId;
-                currentElement = _doc.GetElement(currentId);
+                ElementId currentId = part.Id;
+                Element currentElement = part;
+                while (currentElement is Part p)
+                {
+                    var sourceIds = p.GetSourceElementIds();
+                    if (sourceIds == null || sourceIds.Count == 0) break;
+                    currentId = sourceIds.First().HostElementId;
+                    currentElement = _doc.GetElement(currentId);
+                }
+                hostOriginal = currentElement;
             }
-            Element hostOriginal = currentElement;
+
             if (hostOriginal == null || hostOriginal is Part) return; 
 
             // ==========================================

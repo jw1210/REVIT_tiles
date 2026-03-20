@@ -15,4 +15,10 @@
 ## [待解問題] 性質欄參數不顯示 (Missing Properties on Part)
 - **描述**：V4.5 系列導入了性質欄驅動功能，但在特定 Revit 環境或舊有文件中，`Tile_HGroutGap` 等參數可能無法出現在零件 (Parts) 的性質面板。
 - **原因分析**：初步判定為 Revit 零件類別對動態綁定參數 (Project Parameters) 的顯示限制，或是 GUID 衝突。
-- **狀態**：暫時記錄為已知問題，V4.5.0 功能保留但顯示可能受限。
+- [x] **狀態**：暫時記錄為已知問題，V4.5.0 功能保留但顯示可能受限。
+
+## [待解問題] 跨類別背斜相接 (Cross-Category Miter Join: Floor/Roof/Wall)
+- **描述**：目前的 `MiterJoinService` 僅支援「牆與牆」的斜切。當涉及「樓板-牆」或「屋頂-牆」的零件時，幾何引擎尚無法自動計算交界處的 45 度切平。
+- **技術原理**：需將 `GetHostWall` 擴展為 `GetHostElement`，並根據兩者 FaceNormal 的夾角計算 Bisector Plane（角平分面）進行 `PartUtils.DivideParts`。
+- **預計時數**：中等複雜度，需優化幾何投影算法。
+- **狀態**：已記錄，待納入 V4.6+ 開發排程。
